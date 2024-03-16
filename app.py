@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 cols = list(pd.read_excel("catan_data.xlsx").iloc[0,:])
@@ -38,6 +39,7 @@ fig = px.scatter_geo(data_unique,
                      hover_name='loc', 
                      hover_data={'Details': True, 'latitude': False, 'longitude': False}  # Include mean scores in hoverinfo
                      )
+
 
 # Integrate with Streamlit
 st.title('Bwanastan (ab 2022)')
