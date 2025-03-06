@@ -39,18 +39,18 @@ st.markdown(
     <style>
       @font-face {
         font-family: 'Castellar';
-        src: url('https://github.com/mxfuh/catan_data/blob/main/font/castellar-regular.ttf') format('truetype');
+        src: url('https://raw.githubusercontent.com/mxfuh/catan_data/main/font/castellar-regular.woff2') format('woff2'),
+             url('https://raw.githubusercontent.com/mxfuh/catan_data/main/font/castellar-regular.ttf') format('truetype');
         font-weight: normal;
         font-style: normal;
         font-display: swap;
       }
     </style>
-    <h1 style="text-align: center; font-family: 'Castellar', serif; color: #4B2E1F; font-size: 64px;">
-      Bwanastan
-    </h1>
+    <h1 style="text-align: center; font-family: 'Castellar', serif; color: #4B2E1F; font-size: 64px;">Bwanastan</h1>
     """,
     unsafe_allow_html=True
 )
+
 
 
 # st.markdown(
