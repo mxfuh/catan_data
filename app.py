@@ -108,7 +108,7 @@ html_string = f"""
       /* Media query for smaller screens */
       @media (max-width: 1200px) {{
           .victorian-frame {{
-              max-width: 90%;
+              max-width: 50%;
           }}
       }}
     </style>
