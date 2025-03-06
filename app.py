@@ -11,6 +11,7 @@ stadia_api_key = "de89fcde-b15e-4db3-a3d6-08e486eb9af6"
 # Construct the style URL for Stadia Maps' "stamen-watercolor" style.
 #style_url = f"https://basemaps-api.stadiamaps.com/v1/styles/stamen-watercolor/style.json?api_key={stadia_api_key}"
 style_url = "https://tiles.stadiamaps.com/styles/stamen_watercolor.json"
+api_style_url = "https://tiles.stadiamaps.com/styles/stamen_watercolor.json?api_key=de89fcde-b15e-4db3-a3d6-08e486eb9af6"
 
 
 cols = list(pd.read_excel("catan_data.xlsx").iloc[0,:])
@@ -68,7 +69,7 @@ fig = px.scatter_mapbox(
 # Adjust the layout size
 fig.update_layout(
     mapbox=dict(
-        style=style_url,
+        style=api_style_url,
         # If required, include the access token (some custom styles need this, others don't)
         accesstoken=stadia_api_key),
     width=600,
