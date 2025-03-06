@@ -92,23 +92,24 @@ html_string = f"""
     <style>
       /* Responsive Victorian frame */
       .victorian-frame {{
-          border: 5px solid #8B4513;      /* Brown border for vintage feel */
-          border-radius: 15px;            /* Rounded corners */
-          padding: 10px;
-          box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3); /* Drop shadow */
-          background-color: #fdfaf6;      /* Warm, light background */
-          width: 100%;                    /* Full width */
-          max-width: 700px;              /* Maximum width matching your figure */
-          margin: 30px auto;              /* Center horizontally with top/bottom margin */
+          box-sizing: border-box;  /* Include border and padding in the element's width */
+        border: 5px solid #8B4513;      /* Brown border for vintage feel */
+        border-radius: 15px;            /* Rounded corners */
+        padding: 10px;
+        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3); /* Drop shadow */
+        background-color: #fdfaf6;      /* Warm, light background */
+        width: 100%;                    /* Full width */
+        max-width: 670px;              /* Maximum width matching your figure */
+        margin: 30px auto;              /* Center horizontally with top/bottom margin */
       }}
       body {{
           margin: 0;
           padding: 0;
       }}
       /* Media query for smaller screens */
-      @media (max-width: 600px) {{
+      @media (max-width: 1200px) {{
           .victorian-frame {{
-              max-width: 90%;
+              max-width: 100%;
           }}
       }}
     </style>
@@ -122,7 +123,7 @@ html_string = f"""
 """
 
 # Embed the HTML with the custom frame in your Streamlit app
-components.html(html_string,height=510, width=670 ) # 
+components.html(html_string,height=510, width=630 ) # 
 
 
 
