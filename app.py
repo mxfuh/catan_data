@@ -61,7 +61,7 @@ fig.update_layout(
         style=api_style_url,
         # If required, include the access token (some custom styles need this, others don't)
         accesstoken=stadia_api_key),
-    width=600,
+    width=650,
     height=400,
     margin=dict(l=2, r=2, t=2, b=2)
 )
@@ -104,7 +104,7 @@ html_string = f"""
 """
 
 # Embed the HTML with the custom frame in your Streamlit app
-components.html(html_string,height=510, width=630 ) # 
+components.html(html_string,height=510, width=680 ) # 
 
 
 
