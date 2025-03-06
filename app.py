@@ -62,7 +62,7 @@ fig = px.scatter_mapbox(
     hover_name='loc',
     hover_data={'Details': True, 'latitude': False, 'longitude': False},
     mapbox_style="open-street-map",  # You can choose your preferred style
-    zoom=3,
+    zoom=4,
     height=400
 )
 
