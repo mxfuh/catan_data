@@ -106,9 +106,9 @@ html_string = f"""
           padding: 0;
       }}
       /* Media query for smaller screens */
-      @media (max-width: 1200px) {{
+      @media (max-width: 600px) {{
           .victorian-frame {{
-              max-width: 50%;
+              max-width: 90%;
           }}
       }}
     </style>
