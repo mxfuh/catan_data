@@ -8,7 +8,12 @@ import plotly.graph_objects as go
 from catan_functions import fit_excel_into_df
 from catan_functions import create_hover_data
 
-
+# Define custom colors for each player. Used later.
+player_colors = {
+    'PF': '#003366',   # nice deep blue
+    'JHC': '#FF4500',     # fiery red
+    'MF': '#FFD700'  # strong and visible yellow
+}
 
 # stadia maps api key mit url
 stadia_api_key = "de89fcde-b15e-4db3-a3d6-08e486eb9af6"
@@ -51,16 +56,6 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
-
-# st.markdown(
-#     """<h1 style='text-align: center; 
-#     font-family: \"Castellar\", serif;
-#     color: #4B2E1F; 
-#     font-size: 64px;
-#     '>Bwanastan</h1>""",
-#     unsafe_allow_html=True
-# )
 
 # map code (using scatter_mapbox as an example)
 fig = px.scatter_mapbox(
