@@ -10,7 +10,7 @@ from catan_functions import create_hover_data
 
 # Define custom colors for each player. Used later.
 player_colors = {
-    'PF': '#003366',   # nice deep blue
+    'PF': '#075eb5',   # nice deep blue
     'JHC': '#FF4500',     # fiery red
     'MF': '#FFD700'  # strong and visible yellow
 }
@@ -58,7 +58,7 @@ st.markdown(
 
 
 # map code (using scatter_mapbox as an example)
-fig = px.scatter_mapbox(
+fig_map = px.scatter_mapbox(
     data_unique,
     lat='latitude',
     lon='longitude',
@@ -70,7 +70,7 @@ fig = px.scatter_mapbox(
 )
 
 # Adjust the layout size
-fig.update_layout(
+fig_map.update_layout(
     mapbox=dict(
         style=api_style_url,
         # If required, include the access token (some custom styles need this, others don't)
@@ -111,7 +111,7 @@ html_string = f"""
   </head>
   <body>
     <div class="victorian-frame">
-      {fig.to_html(include_plotlyjs='cdn', full_html=False)}
+      {fig_map.to_html(include_plotlyjs='cdn', full_html=False)}
     </div>
   </body>
 </html>
@@ -128,4 +128,88 @@ components.html(html_string,height=510, width=680 ) #
 
 
 
+##############################################################
+############# CREATE Interaktiven Saisonverlauf Line graph ################
+##############################################################
 
+
+# Define custom colors for each player. Used later.
+player_colors = {
+    'PF': '#075eb5',   # nice deep blue
+    'JHC': '#FF4500',   # fiery red
+    'MF': '#FFD700'     # strong and visible yellow
+}
+
+# Get unique years and players
+years = sorted(data['season'].unique())
+players = data['player'].unique()
+
+# Build the figure with one trace per (year, player) combination.
+fig_saisonverlauf = go.Figure()
+visibility_dict = {}  # to keep track of trace indices for each year
+trace_idx = 0
+
+for year in years:
+    visibility_dict[year] = []
+    for player in players:
+        # Filter data for the current year and player.
+        filtered_df = data[(data['season'] == year) & (data['player'] == player)]
+        fig_saisonverlauf.add_trace(go.Scatter(
+            x=filtered_df['game'],             # x-axis: game number within the year
+            y=filtered_df['points_cum_ytd'],     # y-axis: cumulative points for the season
+            mode='lines+markers',
+            name=player,
+            line=dict(color=player_colors.get(player, 'black')),  # set line color from the dictionary
+            marker=dict(color=player_colors.get(player, 'black'))   # set marker color as well
+        ))
+        visibility_dict[year].append(trace_idx)
+        trace_idx += 1
+
+# Create dropdown buttons to filter by year.
+dropdown_buttons = []
+for year in years:
+    # Create a list of booleans: only traces corresponding to the selected year are visible.
+    vis = [False] * trace_idx
+    for idx in visibility_dict[year]:
+        vis[idx] = True
+    dropdown_buttons.append(
+        dict(
+            label=str(year),
+            method='update',
+            args=[{'visible': vis}]  # Remove title update to keep the same title settings.
+        )
+    )
+
+# Update layout with custom title font properties and dropdown menu.
+fig_saisonverlauf.update_layout(
+    updatemenus=[{
+        'buttons': dropdown_buttons,
+        'direction': 'down',
+        'showactive': True,
+        'x': 0.1,
+        'y': 1.15,
+        'xanchor': 'left',
+        'yanchor': 'top'
+    }],
+    title=dict(
+        text='<b>MEISTERSCHAFTSVERLAUF</b>',  # Bold title using HTML tags.
+        font=dict(
+            family='Times New Roman',         # specify the font family
+            size=24,                          # desired font size
+            color='#4B2E1F'                   # desired font color
+        ),
+        x=0.5,                                # center the title horizontally
+        xanchor='center'
+    )
+)
+
+# Set initial visibility to the first year.
+initial_year = years[0]  # initial year remains the first year
+initial_vis = [False] * trace_idx
+for idx in visibility_dict[initial_year]:
+    initial_vis[idx] = True
+for i in range(trace_idx):
+    fig_saisonverlauf.data[i].visible = initial_vis[i]
+
+# Display the figure in your Streamlit app.
+st.plotly_chart(fig_saisonverlauf)
