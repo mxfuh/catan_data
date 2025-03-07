@@ -1,39 +1,38 @@
 def fit_excel_into_df(excel_file):
     import pandas as pd
     import numpy as np
-    # Read in the data and manage the column misfit
-    cols = list(pd.read_excel(excel_file).iloc[0,:])
-    data = pd.read_excel(excel_file).iloc[1:,:]
+    
+    # Read data and fix column names.
+    cols = list(pd.read_excel(excel_file).iloc[0, :])
+    data = pd.read_excel(excel_file).iloc[1:, :]
     data.columns = cols
-    data["game_id"] = data["season"]*100 + data["game"]
+    
+    # Create additional columns.
+    data["game_id"] = data["season"] * 100 + data["game"]
     data["month"] = pd.to_datetime(data["Session"]).dt.month
-    # Split 'geoloc' into two columns 'latitude' and 'longitude'
+    
+    # Split 'geoloc' into 'latitude' and 'longitude'
     data[['latitude', 'longitude']] = data['geoloc'].str.split(', ', expand=True)
     data['latitude'] = pd.to_numeric(data['latitude'])
     data['longitude'] = pd.to_numeric(data['longitude'])
-    # generate total production values
-    resources = ["wood","clay","sheep","grain","ore","paper","coin","fabric"]
+    
+    # Generate total production values.
+    resources = ["wood", "clay", "sheep", "grain", "ore", "paper", "coin", "fabric"]
     for resource in resources:
         data[f"t_sum_{resource}"] = data.groupby(["season", "game"])[f"p_sum_{resource}"].transform("sum")
-    # generate cumulative scores
-    data["points"] = data["place"].map({1:2,2:1,3:0})
-    data["points_cum"] = np.nan #create col
-    data["points_cum_ytd"] = np.nan #create col
-    points_cum_jhc = data.loc[data["player"]=="JHC"].copy()
-    points_cum_pf = data.loc[data["player"]=="PF"].copy()
-    points_cum_mf = data.loc[data["player"]=="MF"].copy()
-    for dude in [points_cum_jhc,points_cum_mf,points_cum_pf]:
-        for i in dude.index:
-            
-            cutoff = dude.loc[dude.index==i]["game_id"].iloc[0]
-            #kumulierte gesamtpunkte setzen
-            dude.loc[dude.index==i,"points_cum"] = dude.loc[dude["game_id"]<=cutoff]["points"].sum()
-            # kumulierte punkte seit jahresbeginn
-            dude.loc[dude.index==i,"points_cum_ytd"] = dude.loc[(dude["game_id"]<=cutoff) & (dude["season"]==int(str(cutoff)[:4]))]["points"].sum()
-    # altes data mit neuem ersetzen
-    data = pd.concat([points_cum_jhc,points_cum_pf,points_cum_mf]).sort_index()
-    #return result
+    
+    # Generate points column.
+    data["points"] = data["place"].map({1: 2, 2: 1, 3: 0})
+    
+    # Sort by game_id to ensure cumulative sums are in order.
+    data = data.sort_values("game_id")
+    
+    # Compute cumulative points (overall and year-to-date) in a vectorized manner.
+    data["points_cum"] = data.groupby("player")["points"].cumsum()
+    data["points_cum_ytd"] = data.groupby(["season", "player"])["points"].cumsum()
+    
     return data
+
 
 
 def create_hover_data(data):
