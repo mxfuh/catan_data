@@ -159,8 +159,19 @@ for year in years:
             y=filtered_df['points_cum_ytd'],     # y-axis: cumulative points for the season
             mode='lines+markers',
             name=player,
-            line=dict(color=player_colors.get(player, 'black')),  # set line color from the dictionary
-            marker=dict(color=player_colors.get(player, 'black'))   # set marker color as well
+            line=dict(color=player_colors.get(player, 'black')),
+            marker=dict(
+                color=player_colors.get(player, 'black'),
+                size=4,             # very small markers
+                symbol='circle'     # round markers
+            ),
+            # Pass the additional columns as custom data.
+            customdata=filtered_df[['loc', "month"]], 
+            hovertemplate=
+                'Spiel: %{x}<br>' +
+                'Punkte: %{y}<br>' +
+                'Ort: %{customdata[0]}<br>' +
+                'Monat: %{customdata[1]}<extra></extra>'
         ))
         visibility_dict[year].append(trace_idx)
         trace_idx += 1
@@ -176,11 +187,11 @@ for year in years:
         dict(
             label=str(year),
             method='update',
-            args=[{'visible': vis}]  # Remove title update to keep the same title settings.
+            args=[{'visible': vis}]  # Remove title update for consistency.
         )
     )
 
-# Update layout with custom title font properties and dropdown menu.
+# Update layout with custom title font properties, dropdown menu, and clean axes.
 fig_saisonverlauf.update_layout(
     updatemenus=[{
         'buttons': dropdown_buttons,
@@ -194,17 +205,21 @@ fig_saisonverlauf.update_layout(
     title=dict(
         text='<b>MEISTERSCHAFTSVERLAUF</b>',  # Bold title using HTML tags.
         font=dict(
-            family='Times New Roman',         # specify the font family
-            size=24,                          # desired font size
-            color='#4B2E1F'                   # desired font color
+            family='Castellar',   # using your custom font loaded earlier
+            size=24,
+            color='#4B2E1F'
         ),
-        x=0.5,                                # center the title horizontally
+        x=0.5,
         xanchor='center'
     )
 )
 
+# Remove tick labels and gridlines from both axes for a clean look.
+fig_saisonverlauf.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, ticks="")
+fig_saisonverlauf.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, ticks="")
+
 # Set initial visibility to the first year.
-initial_year = years[0]  # initial year remains the first year
+initial_year = years[0]
 initial_vis = [False] * trace_idx
 for idx in visibility_dict[initial_year]:
     initial_vis[idx] = True

@@ -6,6 +6,7 @@ def fit_excel_into_df(excel_file):
     data = pd.read_excel(excel_file).iloc[1:,:]
     data.columns = cols
     data["game_id"] = data["season"]*100 + data["game"]
+    data["month"] = pd.to_datetime(data["Session"]).dt.month
     # Split 'geoloc' into two columns 'latitude' and 'longitude'
     data[['latitude', 'longitude']] = data['geoloc'].str.split(', ', expand=True)
     data['latitude'] = pd.to_numeric(data['latitude'])
