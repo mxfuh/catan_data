@@ -13,13 +13,29 @@ def fit_excel_into_df(excel_file):
     
     # Split 'geoloc' into 'latitude' and 'longitude'
     data[['latitude', 'longitude']] = data['geoloc'].str.split(', ', expand=True)
-    data['latitude'] = pd.to_numeric(data['latitude'])
-    data['longitude'] = pd.to_numeric(data['longitude'])
+    data['latitude'] = pd.to_numeric(data['latitude'], errors='coerce')
+    data['longitude'] = pd.to_numeric(data['longitude'], errors='coerce')
     
-    # Generate total production values.
-    resources = ["wood", "clay", "sheep", "grain", "ore", "paper", "coin", "fabric"]
+    # Generate additional information columns.
+    resources = []
+    for colname in [col for col in data if "t_sum" in col]:
+        resources.append(colname[6:])  # extract resource name
     for resource in resources:
-        data[f"t_sum_{resource}"] = data.groupby(["season", "game"])[f"p_sum_{resource}"].transform("sum")
+        # Generate total production values (using min_count=1 so that groups with all NaN return NaN).
+        data[f"t_sum_{resource}"] = data.groupby(["season", "game"])[f"p_sum_{resource}"].transform(
+            lambda x: x.sum(min_count=1)
+        )
+        
+        # Ensure the columns are numeric.
+        data[f"p_sum_{resource}"] = pd.to_numeric(data[f"p_sum_{resource}"], errors="coerce")
+        data[f"t_sum_{resource}"] = pd.to_numeric(data[f"t_sum_{resource}"], errors="coerce")
+        
+        # Generate share of production values safely.
+        data[f"share_{resource}"] = np.nan  # default to NaN
+        mask = data[f"t_sum_{resource}"] != 0
+        data.loc[mask, f"share_{resource}"] = (
+            data.loc[mask, f"p_sum_{resource}"] / data.loc[mask, f"t_sum_{resource}"]
+        )
     
     # Generate points column.
     data["points"] = data["place"].map({1: 2, 2: 1, 3: 0})
@@ -32,6 +48,7 @@ def fit_excel_into_df(excel_file):
     data["points_cum_ytd"] = data.groupby(["season", "player"])["points"].cumsum()
     
     return data
+
 
 
 
