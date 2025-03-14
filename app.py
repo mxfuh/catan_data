@@ -5,21 +5,20 @@ import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go
 
-from catan_functions import fit_excel_into_df
-from catan_functions import create_hover_data
+from catan_functions import fit_excel_into_df, create_hover_data
 
-# Define custom colors for each player. Used later.
+# Define custom colors for each player.
 player_colors = {
     'PF': '#075eb5',   # nice deep blue
-    'JHC': '#FF4500',     # fiery red
-    'MF': '#FFD700'  # strong and visible yellow
+    'JHC': '#FF4500',   # fiery red
+    'MF': '#FFD700'     # strong and visible yellow
 }
 
 # stadia maps api key mit url
 stadia_api_key = "de89fcde-b15e-4db3-a3d6-08e486eb9af6"
 api_style_url = "https://tiles.stadiamaps.com/styles/stamen_watercolor.json?api_key=de89fcde-b15e-4db3-a3d6-08e486eb9af6"
 
-##############################################                 
+##############################################
 ########## get data from excel file ##########
 ##############################################
 
@@ -28,9 +27,6 @@ data = fit_excel_into_df("catan_data.xlsx")
 ##############################################
 ##############################################
 
-
-
-
 ##############################################################
 ############# CREATE INTERACTIVE AND COOL MAP ################
 ##############################################################
@@ -38,7 +34,9 @@ data = fit_excel_into_df("catan_data.xlsx")
 # create hover data
 data_unique = create_hover_data(data)
 
-# Use the custom CSS class in your title
+
+### 
+# Main title with custom font
 st.markdown(
     """
     <style>
@@ -50,58 +48,83 @@ st.markdown(
         font-style: normal;
         font-display: swap;
       }
+                /* Custom styling for tab buttons */
+            [role="tab"] {
+                background-color: #ffe4c2 !important;
+                background-size: cover !important;
+                border: 3px solid #8B4513 !important;
+                border-radius: 8px !important;
+                font-family: 'Times New Roman', serif !important;
+                font-size: 24px !important;
+                color: #8B4513 !important;
+                margin-right: 10px !important;
+                padding: 8px 16px !important;
+                transition: all 0.3s ease !important;
+                box-shadow: 0 0 10px rgba(0,0,0,0.5) !important;
+            }
+            [role="tab"]:focus {
+                outline: none !important;
+            }
+            [role="tab"][aria-selected="true"] {
+                box-shadow: 0 0 10px rgba(0,0,0,0.5) !important;
+            }
+            [data-baseweb="tab-border"] {
+                display: none !important;
+            }
+            [data-baseweb="tab-highlight"] {
+                display: none !important;
+            }
+            [role="tab"], [role="tab"] * {
+                font-family: 'Castellar', serif !important;
+                font-size: 12px !important;
+            }
     </style>
     <h1 style="text-align: center; font-family: 'Castellar', serif; color: #4B2E1F; font-size: 64px;">Bwanastan</h1>
     """,
     unsafe_allow_html=True
 )
 
-
-# map code (using scatter_mapbox as an example)
+# Build the map figure
 fig_map = px.scatter_mapbox(
     data_unique,
     lat='latitude',
     lon='longitude',
     hover_name='loc',
     hover_data={'Details': True, 'latitude': False, 'longitude': False},
-    mapbox_style="open-street-map",  # You can choose your preferred style
+    mapbox_style="open-street-map",
     zoom=4,
     height=400
 )
 
-# Adjust the layout size
 fig_map.update_layout(
     mapbox=dict(
         style=api_style_url,
-        # If required, include the access token (some custom styles need this, others don't)
-        accesstoken=stadia_api_key),
+        accesstoken=stadia_api_key
+    ),
     width=650,
     height=400,
     margin=dict(l=2, r=2, t=2, b=2)
 )
 
-# Create an HTML snippet with updated CSS for responsiveness and centering.
 html_string = f"""
 <html>
   <head>
     <style>
-      /* Responsive Victorian frame */
       .victorian-frame {{
-          box-sizing: border-box;  /* Include border and padding in the element's width */
-        border: 5px solid #8B4513;      /* Brown border for vintage feel */
-        border-radius: 15px;            /* Rounded corners */
+        box-sizing: border-box;
+        border: 5px solid #8B4513;
+        border-radius: 15px;
         padding: 10px;
-        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3); /* Drop shadow */
-        background-color: #fdfaf6;      /* Warm, light background */
-        width: 100%;                    /* Full width */
-        max-width: 670px;              /* Maximum width matching your figure */
-        margin: 30px auto;              /* Center horizontally with top/bottom margin */
+        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
+        background-color: #fdfaf6;
+        width: 100%;
+        max-width: 670px;
+        margin: 30px auto;
       }}
       body {{
           margin: 0;
           padding: 0;
       }}
-      /* Media query for smaller screens */
       @media (max-width: 1200px) {{
           .victorian-frame {{
               max-width: 100%;
@@ -117,28 +140,9 @@ html_string = f"""
 </html>
 """
 
-# Embed the HTML with the custom frame in your Streamlit app
-components.html(html_string,height=510, width=680 ) # 
-
-
-
-#####################################################
-#####################################################
-
-
-
-
 ##############################################################
 ############# CREATE Interaktiven Saisonverlauf Line graph ################
 ##############################################################
-
-
-# Define custom colors for each player. Used later.
-player_colors = {
-    'PF': '#075eb5',   # nice deep blue
-    'JHC': '#FF4500',   # fiery red
-    'MF': '#FFD700'     # strong and visible yellow
-}
 
 # Get unique years and players
 years = sorted(data['season'].unique())
@@ -146,28 +150,27 @@ players = data['player'].unique()
 
 # Build the figure with one trace per (year, player) combination.
 fig_saisonverlauf = go.Figure()
-visibility_dict = {}  # to keep track of trace indices for each year
+visibility_dict = {}  # Track trace indices per year
 trace_idx = 0
 
 for year in years:
     visibility_dict[year] = []
     for player in players:
-        # Filter data for the current year and player.
         filtered_df = data[(data['season'] == year) & (data['player'] == player)]
         fig_saisonverlauf.add_trace(go.Scatter(
-            x=filtered_df['game'],             # x-axis: game number within the year
-            y=filtered_df['points_cum_ytd'],     # y-axis: cumulative points for the season
+            x=filtered_df['game'],
+            y=filtered_df['points_cum_ytd'],
             mode='lines+markers',
             name=player,
             line=dict(color=player_colors.get(player, 'black')),
             marker=dict(
                 color=player_colors.get(player, 'black'),
-                size=4,             # very small markers
-                symbol='circle'     # round markers
+                size=4,
+                symbol='circle'
             ),
-            # Pass the additional columns as custom data.
-            customdata=filtered_df[['loc', "month"]], 
+            customdata=filtered_df[['loc', "month"]],
             hovertemplate=
+                f"Spieler: {player}<br>" +
                 'Spiel: %{x}<br>' +
                 'Punkte: %{y}<br>' +
                 'Ort: %{customdata[0]}<br>' +
@@ -179,7 +182,6 @@ for year in years:
 # Create dropdown buttons to filter by year.
 dropdown_buttons = []
 for year in years:
-    # Create a list of booleans: only traces corresponding to the selected year are visible.
     vis = [False] * trace_idx
     for idx in visibility_dict[year]:
         vis[idx] = True
@@ -187,26 +189,25 @@ for year in years:
         dict(
             label=str(year),
             method='update',
-            args=[{'visible': vis}]  # Remove title update for consistency.
+            args=[{'visible': vis}]
         )
     )
 
-# Update layout with custom title font properties, dropdown menu, and clean axes.
 fig_saisonverlauf.update_layout(
     updatemenus=[{
         'buttons': dropdown_buttons,
         'direction': 'down',
         'showactive': True,
-        'x': 0.1,
+        'x': 0.05,
         'y': 1.15,
         'xanchor': 'left',
         'yanchor': 'top'
     }],
     title=dict(
-        text='<b>MEISTERSCHAFTSVERLAUF</b>',  # Bold title using HTML tags.
+        text='<b>MEISTERSCHAFTSVERLAUF</b>',
         font=dict(
-            family='Castellar',   # using your custom font loaded earlier
-            size=24,
+            family='Castellar',
+            size=22,
             color='#4B2E1F'
         ),
         x=0.5,
@@ -214,7 +215,6 @@ fig_saisonverlauf.update_layout(
     )
 )
 
-# Remove tick labels and gridlines from both axes for a clean look.
 fig_saisonverlauf.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, ticks="")
 fig_saisonverlauf.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, ticks="")
 
@@ -226,5 +226,73 @@ for idx in visibility_dict[initial_year]:
 for i in range(trace_idx):
     fig_saisonverlauf.data[i].visible = initial_vis[i]
 
-# Display the figure in your Streamlit app.
-st.plotly_chart(fig_saisonverlauf)
+##############################################
+############# TAB NAVIGATION ################
+##############################################
+
+# Use st.tabs for a more integrated navigation experience.
+tab1, tab2 = st.tabs(["Die Lande", "Meisterschaft"])
+
+with tab1:
+    components.html(html_string, height=510, width=680)
+
+#with tab2:
+ #   st.plotly_chart(fig_saisonverlauf)
+
+# Set tighter margins for the line graph
+# Adjust figure layout to give room for legend and dropdown
+fig_saisonverlauf.update_layout(
+    # legend=dict(
+    #     orientation="h",    # horizontal legend
+    #     yanchor="bottom",     
+    #     y=-0.2,             # position below the plot; adjust as needed
+    #     xanchor="center",
+    #     x=0.5
+    # ),
+    showlegend = False,
+    width = 600,
+    height = 350,
+    margin=dict(l=20, r=2, t=2, b=2),  # adjust margins if needed
+    paper_bgcolor='#fdfaf6',  # Changes the overall background of the graph
+    plot_bgcolor='#fdfaf6'    # Changes the background of the plot area (the area behind the data)
+)
+
+
+html_string2 = f"""
+<html>
+  <head>
+    <style>
+      .victorian-frame {{
+        box-sizing: border-box;
+        overflow: visible;  /* Allow content to overflow if needed */
+        border: 5px solid #8B4513;
+        border-radius: 15px;
+        padding: 20px; /* Reduced padding for a tighter frame */
+        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
+        background-color: #fdfaf6;
+        width: 100%;
+        max-width: 670px;
+        margin: 20px auto;
+      }}
+      body {{
+          margin: 10;
+          padding: 10;
+      }}
+      @media (max-width: 1200px) {{
+          .victorian-frame {{
+              max-width: 100%;
+          }}
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="victorian-frame">
+      {fig_saisonverlauf.to_html(include_plotlyjs='cdn', full_html=False)}
+    </div>
+  </body>
+</html>
+"""
+
+with tab2:
+    components.html(html_string2, height=500, width=680)
+
