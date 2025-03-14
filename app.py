@@ -226,29 +226,11 @@ for idx in visibility_dict[initial_year]:
 for i in range(trace_idx):
     fig_saisonverlauf.data[i].visible = initial_vis[i]
 
-##############################################
-############# TAB NAVIGATION ################
-##############################################
 
-# Use st.tabs for a more integrated navigation experience.
-tab1, tab2 = st.tabs(["Die Lande", "Meisterschaft"])
-
-with tab1:
-    components.html(html_string, height=510, width=680)
-
-#with tab2:
- #   st.plotly_chart(fig_saisonverlauf)
 
 # Set tighter margins for the line graph
 # Adjust figure layout to give room for legend and dropdown
 fig_saisonverlauf.update_layout(
-    # legend=dict(
-    #     orientation="h",    # horizontal legend
-    #     yanchor="bottom",     
-    #     y=-0.2,             # position below the plot; adjust as needed
-    #     xanchor="center",
-    #     x=0.5
-    # ),
     showlegend = False,
     width = 600,
     height = 350,
@@ -292,6 +274,18 @@ html_string2 = f"""
   </body>
 </html>
 """
+
+##############################################
+############# TAB NAVIGATION ################
+##############################################
+
+# Use st.tabs for a more integrated navigation experience.
+tab1, tab2 = st.tabs(["Die Lande", "Meisterschaft"])
+
+with tab1:
+    components.html(html_string, height=510, width=680)
+
+
 
 with tab2:
     components.html(html_string2, height=500, width=680)
