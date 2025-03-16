@@ -4,6 +4,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go
+import matplotlib.colors as mcolors
 
 from catan_functions import fit_excel_into_df, create_hover_data
 
@@ -275,12 +276,54 @@ html_string2 = f"""
 </html>
 """
 
+
+##############################################
+############# Production Tables ##############
+##############################################
+
+# Group and aggregate the data
+df_p = data[["season", "player"] + [col for col in data if "p_sum_" in col]].groupby(["season", "player"]).mean()
+df_p = df_p.rename(columns = {col:col[6:] for col in df_p})
+###### the following not for display, just calculating a table with season shares
+df_t_calc = data[["season", "player"] + [col for col in data if "t_sum_" in col]].groupby(["season", "player"]).mean()
+df_t_calc = df_t_calc.rename(columns = {col:col[6:] for col in df_t_calc})
+# Now perform elementwise division
+ratio_df = df_p / df_t_calc
+######### this one for display: average total production per season
+df_t = data[["season"] + [col for col in data if "t_sum_" in col]].groupby(["season"]).mean()
+df_t = df_t.rename(columns = {col:col[6:] for col in df_t})
+
+###### actual shares, aggregated from per-game shares
+share_df = data[["season", "player"] + [col for col in data if "share_" in col]].groupby(["season", "player"]).mean()
+share_df = share_df.rename(columns = {col:col[6:] for col in share_df})
+
+
+# create heatmaps
+# Define your light and dark shades. Replace these with your desired hex colors.
+light_shade = "#ffe4c2"  # light shade (for smallest values)
+dark_shade = "#b5864a"   # dark shade (for largest values)  #8B4513
+
+# Create a custom linear colormap from the two colors.
+custom_cmap = mcolors.LinearSegmentedColormap.from_list("custom_shade", [light_shade, dark_shade])
+
+
+
+
+styled_df_p = df_p.style.background_gradient(cmap=custom_cmap).format("{:.2f}")
+styled_df_t = df_t.style.background_gradient(cmap=custom_cmap).format("{:.2f}")
+styled_ratio_df = ratio_df.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
+styled_share_df = share_df.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
+
+
+
+
+
 ##############################################
 ############# TAB NAVIGATION ################
 ##############################################
 
 # Use st.tabs for a more integrated navigation experience.
-tab1, tab2 = st.tabs(["Die Lande", "Meisterschaft"])
+tab1, tab2, tab3 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft"])
 
 with tab1:
     components.html(html_string, height=510, width=680)
@@ -289,4 +332,20 @@ with tab1:
 
 with tab2:
     components.html(html_string2, height=500, width=680)
+
+
+
+with tab3:
+    st.markdown("### Durchschnittliche Produktion pro Lehen")
+    st.markdown(styled_df_p.to_html(), unsafe_allow_html=True)
+    
+    st.markdown("### Durchschnittliche Gesamtproduktion pro Saison")
+    st.markdown(styled_df_t.to_html(), unsafe_allow_html=True)
+    
+    st.markdown("### Anteile einzelner Lehen an Gesamtproduktion (kumuliert)")
+    st.markdown(styled_ratio_df.to_html(), unsafe_allow_html=True)
+    
+    st.markdown("### Anteile einzelner Lehen an Gesamtproduktion (Spielbasis)")
+    st.markdown(styled_share_df.to_html(), unsafe_allow_html=True)
+
 
