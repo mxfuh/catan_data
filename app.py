@@ -48,7 +48,12 @@ st.markdown(
         font-weight: normal;
         font-style: normal;
         font-display: swap;
-      }
+        }
+        h3.custom-title {
+          font-family: Castellar, serif;
+          font-size: 26px;
+          color: #4B2E1F;
+            }
                 /* Custom styling for tab buttons */
             [role="tab"] {
                 background-color: #ffe4c2 !important;
@@ -336,16 +341,16 @@ with tab2:
 
 
 with tab3:
-    st.markdown("### Durchschnittliche Produktion pro Lehen")
+    st.markdown('<h3 class="custom-title">Durchschnittliche Produktion <br>pro Lehen</h3>', unsafe_allow_html=True)
     st.markdown(styled_df_p.to_html(), unsafe_allow_html=True)
     
-    st.markdown("### Durchschnittliche Gesamtproduktion pro Saison")
+    st.markdown('<h3 class="custom-title">Durchschnittliche Gesamtproduktion <br>nach Jahr</h3>', unsafe_allow_html=True)
     st.markdown(styled_df_t.to_html(), unsafe_allow_html=True)
     
-    st.markdown("### Anteile einzelner Lehen an Gesamtproduktion (kumuliert)")
+    st.markdown('<h3 class="custom-title">Anteile einzelner Lehen <br>an Gesamtproduktion <br>(kumuliert)</h3>', unsafe_allow_html=True)
     st.markdown(styled_ratio_df.to_html(), unsafe_allow_html=True)
     
-    st.markdown("### Anteile einzelner Lehen an Gesamtproduktion (Spielbasis)")
+    st.markdown('<h3 class="custom-title">Anteile einzelner Lehen <br>an Gesamtproduktion <br>(Spielbasis)</h3>', unsafe_allow_html=True)
     st.markdown(styled_share_df.to_html(), unsafe_allow_html=True)
 
 
