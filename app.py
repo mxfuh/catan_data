@@ -302,10 +302,10 @@ df_t = df_t.rename(columns = {col:col[6:] for col in df_t})
 share_df = data[["season", "player"] + [col for col in data if "share_" in col]].groupby(["season", "player"]).mean()
 share_df = share_df.rename(columns = {col:col[6:] for col in share_df})
 
-###### average production by finishing place
-df_place = data[["place"] + [col for col in data if "p_sum_" in col]].groupby(["place"]).mean()
+###### average share of production by finishing place
+df_place = data[["place"] + [col for col in data if "share_" in col]].groupby(["place"]).mean()
 df_place = df_place.rename(columns = {col:col[6:] for col in df_place})
-df_place_season = data[["season", "place"] + [col for col in data if "p_sum_" in col]].groupby(["season", "place"]).mean()
+df_place_season = data[["season", "place"] + [col for col in data if "share_" in col]].groupby(["season", "place"]).mean()
 df_place_season = df_place_season.rename(columns = {col:col[6:] for col in df_place_season})
 
 # create heatmaps
@@ -323,8 +323,8 @@ styled_df_p = df_p.style.background_gradient(cmap=custom_cmap).format("{:.2f}")
 styled_df_t = df_t.style.background_gradient(cmap=custom_cmap).format("{:.2f}")
 styled_ratio_df = ratio_df.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
 styled_share_df = share_df.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
-styled_df_place = df_place.style.background_gradient(cmap=custom_cmap).format("{:.2f}")
-styled_df_place_season = df_place_season.style.background_gradient(cmap=custom_cmap).format("{:.2f}")
+styled_df_place = df_place.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
+styled_df_place_season = df_place_season.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
 
 
 
@@ -360,10 +360,10 @@ with tab3:
     st.markdown('<h3 class="custom-title">Anteile einzelner Lehen <br>an Gesamtproduktion <br>(Spielbasis)</h3>', unsafe_allow_html=True)
     st.markdown(styled_share_df.to_html(), unsafe_allow_html=True)
 
-    st.markdown('<h3 class="custom-title">Durchschnittliche Produktion <br>nach Platzierung</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="custom-title">Durchschnittlicher Produktionsanteil <br>nach Platzierung</h3>', unsafe_allow_html=True)
     st.markdown(styled_df_place.to_html(), unsafe_allow_html=True)  
 
-    st.markdown('<h3 class="custom-title">Durchschnittliche Produktion <br>nach Platzierung und Jahr</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="custom-title">Durchschnittlicher Produktionsanteil <br>nach Platzierung und Jahr</h3>', unsafe_allow_html=True)
     st.markdown(styled_df_place_season.to_html(), unsafe_allow_html=True)
 
 
