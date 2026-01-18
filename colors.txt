@@ -1,0 +1,5 @@
+background:
+ffe4c2
+
+font:
+8B4513

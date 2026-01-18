@@ -111,6 +111,14 @@ fig_map.update_layout(
     height=400,
     margin=dict(l=2, r=2, t=2, b=2)
 )
+# Customize marker appearance
+fig_map.update_traces(
+    marker=dict(
+        color="#960000",  # sealing-wax red
+        size=8,
+        opacity=0.9
+    )
+)
 
 html_string = f"""
 <html>
