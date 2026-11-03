@@ -1,0 +1,6 @@
+# torch CPU-only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch
+numpy
+pandas
+openpyxl
+msal

@@ -158,9 +158,10 @@ html_string = f"""
 ############# CREATE Interaktiven Saisonverlauf Line graph ################
 ##############################################################
 
-# Get unique years and players
-years = sorted(data['season'].unique())
-players = data['player'].unique()
+# Get unique years and players (finished games only, pre-game rows have no points yet)
+played = data[data['complete']]
+years = sorted(played['season'].unique())
+players = played['player'].unique()
 
 # Build the figure with one trace per (year, player) combination.
 fig_saisonverlauf = go.Figure()
@@ -170,7 +171,7 @@ trace_idx = 0
 for year in years:
     visibility_dict[year] = []
     for player in players:
-        filtered_df = data[(data['season'] == year) & (data['player'] == player)]
+        filtered_df = played[(played['season'] == year) & (played['player'] == player)]
         fig_saisonverlauf.add_trace(go.Scatter(
             x=filtered_df['game'],
             y=filtered_df['points_cum_ytd'],
