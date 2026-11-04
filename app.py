@@ -1,11 +1,13 @@
+import html
+
 import numpy as np
 import pandas as pd
 import streamlit as st
-import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 
-from catan_functions import fit_excel_into_df, create_hover_data
+from catan_functions import (fit_excel_into_df, create_hover_data, location_rulers, hall_of_fame,
+                             eternal_table, start_position_table)
 
 
 def embed_html(html, height):
@@ -92,6 +94,81 @@ st.markdown(
                 font-family: 'Castellar', serif !important;
                 font-size: 12px !important;
             }
+            /* Ruhmeshalle: record cards */
+            .hall-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 14px;
+                margin: 10px 0 24px;
+            }
+            .hall-card {
+                background-color: #fdfaf6;
+                border: 3px solid #8B4513;
+                border-radius: 12px;
+                box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.25);
+                padding: 12px 10px 10px;
+                text-align: center;
+                /* subgrid: title, value, unit, holder, detail line up across the cards of a row */
+                display: grid;
+                grid-template-rows: subgrid;
+                grid-row: span 5;
+                row-gap: 3px;
+            }
+            .hall-title {
+                line-height: 1.35;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Castellar', serif;
+                font-size: 13px;
+                color: #8B4513;
+                border-bottom: 1px solid #e0c9a6;
+                padding-bottom: 6px;
+                margin-bottom: 2px;
+            }
+            .hall-value {
+                font-family: 'Castellar', serif;
+                font-size: 32px;
+                line-height: 1.15;
+                color: #4B2E1F;
+            }
+            .hall-value.long {
+                font-size: 22px;
+                line-height: 1.6;
+            }
+            .hall-unit {
+                font-size: 12px;
+                color: #6b4a35;
+                line-height: 1.4;
+            }
+            .hall-holder {
+                font-family: 'Castellar', serif;
+                font-size: 16px;
+                color: #4B2E1F;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                margin-top: 4px;
+            }
+            .hall-seal {
+                width: 13px;
+                height: 13px;
+                border-radius: 50%;
+                border: 2px solid #4B2E1F;
+                display: inline-block;
+            }
+            .hall-detail {
+                font-size: 11px;
+                color: #7a5a44;
+                align-self: end;
+                padding-top: 6px;
+            }
+            .custom-caption {
+                font-size: 12px;
+                color: #7a5a44;
+                margin: -6px 0 18px;
+            }
             /* Tables scroll sideways instead of running off the screen */
             .table-scroll {
                 overflow-x: auto;
@@ -103,8 +180,10 @@ st.markdown(
                 [data-testid="stMainBlockContainer"], .block-container {
                     padding-top: 3rem !important;
                 }
-                [data-baseweb="tab-list"] {
+                [data-baseweb="tab-list"], [role="tablist"] {
                     gap: 6px !important;
+                    flex-wrap: wrap !important;  /* four tabs: two rows instead of hidden tabs */
+                    row-gap: 8px !important;
                 }
                 [role="tab"] {
                     margin-right: 0 !important;
@@ -121,7 +200,7 @@ st.markdown(
                 }
             }
             @media (max-width: 400px) {
-                [data-baseweb="tab-list"] {
+                [data-baseweb="tab-list"], [role="tablist"] {
                     gap: 4px !important;
                 }
                 [role="tab"] {
@@ -137,33 +216,47 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Build the map figure
-fig_map = px.scatter_mapbox(
-    data_unique,
-    lat='latitude',
-    lon='longitude',
-    hover_name='loc',
-    hover_data={'Details': True, 'latitude': False, 'longitude': False},
-    mapbox_style="open-street-map",
-    zoom=4,
-    height=400
-)
+# Build the map figure: each place is colored by its ruler (most wins there), sized by games played
+RULER_COLORS = {**player_colors, "Umkämpft": "#8B4513", "Unerobert": "#fdfaf6"}  # tie / no finished game yet
+map_df = data_unique.merge(location_rulers(data), on="loc", how="left").dropna(subset=["latitude", "longitude"])
+map_df["Spiele"] = map_df["Spiele"].fillna(0)
+map_df["size"] = 7 + 2.2 * np.sqrt(map_df["Spiele"])
+map_df["Herrscher_Text"] = np.where(
+    map_df["Herrscher"].isin(list(player_colors)),
+    map_df["Herrscher"] + " (" + map_df["Herrscher_Siege"].fillna(0).astype(int).astype(str) + " Siege)",
+    map_df["Herrscher"].fillna("Unerobert"))
+
+fig_map = go.Figure()
+for ruler in [r for r in RULER_COLORS if r in set(map_df["Herrscher"])]:
+    sub = map_df[map_df["Herrscher"] == ruler]
+    # Dark ring underneath (map markers have no outline), so yellow stays visible on the watercolor map
+    fig_map.add_trace(go.Scattermapbox(
+        lat=sub["latitude"], lon=sub["longitude"], mode="markers",
+        marker=dict(size=sub["size"] + 4, color="#4B2E1F"),
+        hoverinfo="skip", legendgroup=ruler, showlegend=False))
+    fig_map.add_trace(go.Scattermapbox(
+        lat=sub["latitude"], lon=sub["longitude"], mode="markers", name=ruler, legendgroup=ruler,
+        marker=dict(size=sub["size"], color=RULER_COLORS[ruler]),
+        customdata=sub[["loc", "Herrscher_Text", "Details"]],
+        hovertemplate="<b>%{customdata[0]}</b><br><br><b>Herrscher:</b> %{customdata[1]}%{customdata[2]}<extra></extra>"))
 
 fig_map.update_layout(
     mapbox=dict(
         style=api_style_url,
-        accesstoken=stadia_api_key
+        accesstoken=stadia_api_key,
+        zoom=4,
+        center=dict(lat=data_unique["latitude"].mean(), lon=data_unique["longitude"].mean())
     ),
     autosize=True,
     height=400,
-    margin=dict(l=2, r=2, t=2, b=2)
-)
-# Customize marker appearance
-fig_map.update_traces(
-    marker=dict(
-        color="#960000",  # sealing-wax red
-        size=8,
-        opacity=0.9
+    margin=dict(l=2, r=2, t=2, b=2),
+    hoverlabel=dict(bgcolor="#fdfaf6", bordercolor="#8B4513", font=dict(color="#4B2E1F")),
+    legend=dict(
+        title=dict(text="Herrscher"),
+        x=0.01, y=0.01, xanchor="left", yanchor="bottom",
+        bgcolor="rgba(253, 250, 246, 0.85)", bordercolor="#8B4513", borderwidth=2,
+        font=dict(family="Castellar, serif", size=11, color="#4B2E1F"),
+        itemsizing="constant"
     )
 )
 
@@ -184,13 +277,26 @@ new ResizeObserver(function () {
 
 # Narrow screens: zoom out so the same area stays visible (desktop: map is 650px wide -> zoom 4 unchanged)
 MAP_FIT_JS = fit_on_resize_js("""
-    return {'mapbox.zoom': w < 640 ? Math.round((4 + Math.log2(w / 650)) * 10) / 10 : 4};
+    // phones: the legend moves below the map (.map-legend), so it doesn't cover the places
+    return {'mapbox.zoom': w < 640 ? Math.round((4 + Math.log2(w / 650)) * 10) / 10 : 4,
+            'showlegend': window.innerWidth > 640};
 """)
+
+rulers_shown = [r for r in RULER_COLORS if r in set(map_df["Herrscher"])]
+map_legend_html = ('<div class="map-legend"><span>Herrscher:</span>'
+                   + "".join(f'<span><i style="background-color: {RULER_COLORS[r]};"></i>{html.escape(r)}</span>' for r in rulers_shown)
+                   + '</div>')
 
 html_string = f"""
 <html>
   <head>
     <style>
+      @font-face {{
+        font-family: 'Castellar';
+        src: url('https://raw.githubusercontent.com/mxfuh/catan_data/main/font/castellar-regular.woff2') format('woff2'),
+             url('https://raw.githubusercontent.com/mxfuh/catan_data/main/font/castellar-regular.ttf') format('truetype');
+        font-display: swap;
+      }}
       .victorian-frame {{
         box-sizing: border-box;
         border: 5px solid #8B4513;
@@ -214,12 +320,37 @@ html_string = f"""
           .victorian-frame {{
               margin: 10px 0;
           }}
+          .victorian-frame .map-legend {{
+              display: flex;
+          }}
+      }}
+      .map-legend {{
+          display: none;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 4px 14px;
+          padding-top: 8px;
+          font-family: 'Castellar', serif;
+          font-size: 11px;
+          color: #4B2E1F;
+      }}
+      .map-legend span {{
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+      }}
+      .map-legend i {{
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          border: 2px solid #4B2E1F;
       }}
     </style>
   </head>
   <body>
     <div class="victorian-frame">
       {fig_map.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}, post_script=MAP_FIT_JS)}
+      {map_legend_html}
     </div>
   </body>
 </html>
@@ -336,6 +467,12 @@ html_string2 = f"""
 <html>
   <head>
     <style>
+      @font-face {{
+        font-family: 'Castellar';
+        src: url('https://raw.githubusercontent.com/mxfuh/catan_data/main/font/castellar-regular.woff2') format('woff2'),
+             url('https://raw.githubusercontent.com/mxfuh/catan_data/main/font/castellar-regular.ttf') format('truetype');
+        font-display: swap;
+      }}
       .victorian-frame {{
         box-sizing: border-box;
         overflow: visible;  /* Allow content to overflow if needed */
@@ -423,6 +560,49 @@ styled_df_place = df_place.style.background_gradient(cmap=custom_cmap).format("{
 styled_df_place_season = df_place_season.style.background_gradient(cmap=custom_cmap).format("{:.1%}")
 
 
+def style_standings(df, higher_better, lower_better, formats):
+    """Same parchment gradient as above, per column; for 'lower is better' columns the gradient is reversed."""
+    styled = df.style.format(formats)
+    if higher_better:
+        styled = styled.background_gradient(cmap=custom_cmap, subset=higher_better)
+    if lower_better:
+        styled = styled.background_gradient(cmap=custom_cmap.reversed(), subset=lower_better)
+    return styled
+
+
+df_eternal = eternal_table(data)
+styled_eternal = style_standings(
+    df_eternal,
+    higher_better=["Siege", "Siegquote", "Ø Punkte", "Meisterpunkte", "Meistertitel"],
+    lower_better=["Ø Platz"],
+    formats={"Siegquote": "{:.1%}", "Ø Punkte": "{:.2f}", "Ø Platz": "{:.2f}"})
+
+df_start = start_position_table(data)
+styled_start = style_standings(
+    df_start,
+    higher_better=["Siegquote", "Ø Punkte", "Ø Gesamtproduktion", "Ø Handelswaren"],
+    lower_better=["Ø Platz"],
+    formats={"Siegquote": "{:.1%}", "Ø Punkte": "{:.2f}", "Ø Platz": "{:.2f}",
+             "Ø Gesamtproduktion": "{:.1f}", "Ø Handelswaren": "{:.1f}"})
+
+
+def hall_card(record):
+    color = player_colors.get(record["holder"], "#8B4513")
+    e = html.escape
+    return ('<div class="hall-card">'
+            f'<div class="hall-title">{e(record["title"])}</div>'
+            f'<div class="hall-value{" long" if len(record["value"]) > 5 else ""}">{e(record["value"])}</div>'
+            f'<div class="hall-unit">{e(record["unit"])}</div>'
+            f'<div class="hall-holder"><span class="hall-seal" style="background-color: {color};"></span>{e(str(record["holder"]))}</div>'
+            f'<div class="hall-detail">{e(record["detail"])}</div>'
+            '</div>')
+
+
+records = hall_of_fame(data)
+n_games = data.loc[data["complete"], "game_id"].nunique()
+hall_html = '<div class="hall-grid">' + "".join(hall_card(r) for r in records) + '</div>'
+
+
 
 
 
@@ -431,7 +611,7 @@ styled_df_place_season = df_place_season.style.background_gradient(cmap=custom_c
 ##############################################
 
 # Use st.tabs for a more integrated navigation experience.
-tab1, tab2, tab3 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft"])
+tab1, tab2, tab3, tab4 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft", "Ruhmeshalle"])
 
 with tab1:
     embed_html(html_string, height=510)
@@ -440,6 +620,13 @@ with tab1:
 
 with tab2:
     embed_html(html_string2, height=500)
+
+    if not df_eternal.empty:
+        st.markdown('<h3 class="custom-title">Ewige Tabelle</h3>', unsafe_allow_html=True)
+        st.markdown('<div class="table-scroll">' + styled_eternal.to_html() + '</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-caption">Meisterpunkte: 2 für einen Sieg, 1 für Platz 2. '
+                    'Meistertitel: meiste Meisterpunkte einer Saison, die laufende Saison zählt noch nicht.</div>',
+                    unsafe_allow_html=True)
 
 
 
@@ -461,5 +648,21 @@ with tab3:
 
     st.markdown('<h3 class="custom-title">Durchschnittlicher Produktionsanteil <br>nach Platzierung und Jahr</h3>', unsafe_allow_html=True)
     st.markdown('<div class="table-scroll">' + styled_df_place_season.to_html() + '</div>', unsafe_allow_html=True)
+
+    if not df_start.empty:
+        st.markdown('<h3 class="custom-title">Vorteil der <br>Startposition</h3>', unsafe_allow_html=True)
+        st.markdown('<div class="table-scroll">' + styled_start.to_html() + '</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-caption">Nur abgeschlossene Spiele. Handelswaren: Papier, Münzen, Stoff.</div>',
+                    unsafe_allow_html=True)
+
+
+with tab4:
+    st.markdown('<h3 class="custom-title">Ruhmeshalle</h3>', unsafe_allow_html=True)
+    if records:
+        st.markdown(f'<div class="custom-caption">Rekorde aus {n_games} abgeschlossenen Spielen seit {data["season"].min()}.</div>',
+                    unsafe_allow_html=True)
+        st.markdown(hall_html, unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="custom-caption">Noch kein Spiel abgeschlossen.</div>', unsafe_allow_html=True)
 
 
