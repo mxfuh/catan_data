@@ -1,6 +1,6 @@
 [theme]
 base="light"
-backgroundColor="#faf5f2"
+backgroundColor="#fdecda"  # between the old #faf5f2 and the tab fill #ffe4c2
 primaryColor="#1abc9c"
 secondaryBackgroundColor="#f0f2f6"
 textColor="#262730"
