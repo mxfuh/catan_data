@@ -193,7 +193,11 @@ def save_models(state_dir, sig, models):
 
 def format_message(game, models):
     first = game.iloc[0]
-    lines = [f"🎲 **Catan-Prognose** · Saison {first['season']}, Spiel {first['game']} · {first['loc']}"]
+    lines = [f"🎲 **Catan-Prognose** · Saison {first['season']}, Spiel {first['game']} · {first['loc']}", "", "**Setzung**"]
+    # Gesamtproduktion = Summe der Würfelfrequenzen aller Felder (pro 36 Würfe)
+    for _, row in game.sort_values("position").iterrows():
+        lines.append(f"{START[row['position']]}. {row['player']:<3} Gesamtproduktion {row['sum']:.0f}"
+                     f" ({row['sum_resources']:.0f} Rohstoffe + {row['sum_tradegoods']:.0f} Handelswaren)")
     for variant, title in VARIANTS.items():
         model = models[variant]
         pred = predict(model, game[model["cols"]].values.astype(float))
@@ -202,7 +206,7 @@ def format_message(game, models):
         for rank, i in enumerate(np.argsort(-pred[:, 0]), start=1):
             row = game.iloc[i]
             lines.append(f"{rank}. {row['player']:<3} {pred[i, 0]:5.1f} Punkte (davon {pred[i, 1]:.1f} Sonder-SP)"
-                         f" · Sieg {probs[i]:.0%} · Startposition {START[row['position']]}")
+                         f" · Sieg {probs[i]:.0%}")
     m = models["with_player"]
     lines += ["", f"Modell: NN-Ensemble, trainiert auf {m['n_games']} Spielen. Typischer Fehler im Test ±"
                   f"{m['mae']:.2f} Punkte mit / ±{models['no_player']['mae']:.2f} ohne Spieler-Info "
