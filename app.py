@@ -6,6 +6,11 @@ import streamlit as st
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 
+import importlib
+import catan_functions
+# Streamlit Cloud re-runs app.py after a code update but keeps already imported modules in memory;
+# reloading makes sure new functions in catan_functions.py are picked up without rebooting the app.
+importlib.reload(catan_functions)
 from catan_functions import (fit_excel_into_df, create_hover_data, location_rulers, hall_of_fame,
                              eternal_table, start_position_table)
 
