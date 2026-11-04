@@ -1,12 +1,20 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.colors as mcolors
 
 from catan_functions import fit_excel_into_df, create_hover_data
+
+
+def embed_html(html, height):
+    """Show our own generated HTML (plotly figure in its frame) in an iframe."""
+    if hasattr(st, "iframe"):
+        st.iframe(html, height=height)
+    else:  # older Streamlit versions without st.iframe
+        import streamlit.components.v1 as components
+        components.html(html, height=height)
 
 # Define custom colors for each player.
 player_colors = {
@@ -426,12 +434,12 @@ styled_df_place_season = df_place_season.style.background_gradient(cmap=custom_c
 tab1, tab2, tab3 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft"])
 
 with tab1:
-    components.html(html_string, height=510)
+    embed_html(html_string, height=510)
 
 
 
 with tab2:
-    components.html(html_string2, height=500)
+    embed_html(html_string2, height=500)
 
 
 
