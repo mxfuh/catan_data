@@ -84,8 +84,47 @@ st.markdown(
                 font-family: 'Castellar', serif !important;
                 font-size: 12px !important;
             }
+            /* Tables scroll sideways instead of running off the screen */
+            .table-scroll {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin-bottom: 1rem;
+            }
+            /* Phones: same design, just scaled to fit */
+            @media (max-width: 640px) {
+                [data-testid="stMainBlockContainer"], .block-container {
+                    padding-top: 3rem !important;
+                }
+                [data-baseweb="tab-list"] {
+                    gap: 6px !important;
+                }
+                [role="tab"] {
+                    margin-right: 0 !important;
+                    padding: 6px 8px !important;
+                }
+                h3.custom-title {
+                    font-size: 6vw;
+                }
+                .table-scroll table {
+                    font-size: 12px !important;
+                }
+                .table-scroll th, .table-scroll td {
+                    padding: 4px 6px !important;
+                }
+            }
+            @media (max-width: 400px) {
+                [data-baseweb="tab-list"] {
+                    gap: 4px !important;
+                }
+                [role="tab"] {
+                    padding: 5px 6px !important;
+                }
+                [role="tab"], [role="tab"] * {
+                    font-size: 11px !important;
+                }
+            }
     </style>
-    <h1 style="text-align: center; font-family: 'Castellar', serif; color: #4B2E1F; font-size: 64px;">Bwanastan</h1>
+    <h1 style="text-align: center; font-family: 'Castellar', serif; color: #4B2E1F; font-size: clamp(32px, 11vw, 64px);">Bwanastan</h1>
     """,
     unsafe_allow_html=True
 )
@@ -107,7 +146,7 @@ fig_map.update_layout(
         style=api_style_url,
         accesstoken=stadia_api_key
     ),
-    width=650,
+    autosize=True,
     height=400,
     margin=dict(l=2, r=2, t=2, b=2)
 )
@@ -119,6 +158,26 @@ fig_map.update_traces(
         opacity=0.9
     )
 )
+
+# Runs fit(width) whenever the plot's width changes (also when a hidden tab is opened).
+# fit returns the layout for that width; it is only applied when it differs from the last one.
+def fit_on_resize_js(fit_body):
+    return """
+var gd = document.getElementById('{plot_id}');
+var last = null;
+function fit(w) {""" + fit_body + """}
+new ResizeObserver(function () {
+    var w = gd.getBoundingClientRect().width;
+    if (!w) return;
+    var upd = fit(w), key = JSON.stringify(upd);
+    if (key !== last) { last = key; Plotly.relayout(gd, upd); }
+}).observe(gd);
+"""
+
+# Narrow screens: zoom out so the same area stays visible (desktop: map is 650px wide -> zoom 4 unchanged)
+MAP_FIT_JS = fit_on_resize_js("""
+    return {'mapbox.zoom': w < 640 ? Math.round((4 + Math.log2(w / 650)) * 10) / 10 : 4};
+""")
 
 html_string = f"""
 <html>
@@ -132,23 +191,27 @@ html_string = f"""
         box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
         background-color: #fdfaf6;
         width: 100%;
-        max-width: 670px;
-        margin: 30px auto;
+        max-width: 680px;  /* desktop size as before (iframe used to be fixed at 680px) */
+        margin: 30px 0;
       }}
       body {{
           margin: 0;
           padding: 0;
       }}
-      @media (max-width: 1200px) {{
+      @media (max-width: 640px) {{
+          /* on touch screens the plotly toolbar stays visible and covers the plot */
+          .modebar-container {{
+              display: none !important;
+          }}
           .victorian-frame {{
-              max-width: 100%;
+              margin: 10px 0;
           }}
       }}
     </style>
   </head>
   <body>
     <div class="victorian-frame">
-      {fig_map.to_html(include_plotlyjs='cdn', full_html=False)}
+      {fig_map.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}, post_script=MAP_FIT_JS)}
     </div>
   </body>
 </html>
@@ -247,13 +310,19 @@ for i in range(trace_idx):
 # Adjust figure layout to give room for legend and dropdown
 fig_saisonverlauf.update_layout(
     showlegend = False,
-    width = 600,
+    autosize = True,  # width comes from the frame (max 600px, as before)
     height = 350,
     margin=dict(l=20, r=2, t=2, b=2),  # adjust margins if needed
     paper_bgcolor='#fdfaf6',  # Changes the overall background of the graph
     plot_bgcolor='#fdfaf6'    # Changes the background of the plot area (the area behind the data)
 )
 
+
+# On narrow screens shrink the title and move the year dropdown to the left edge so they don't overlap
+CHART_FIT_JS = fit_on_resize_js("""
+    return w < 500 ? {'title.font.size': w < 320 ? 12 : 14, 'title.x': 0.6, 'updatemenus[0].x': 0}
+                   : {'title.font.size': 22, 'title.x': 0.5, 'updatemenus[0].x': 0.05};
+""")
 
 html_string2 = f"""
 <html>
@@ -268,23 +337,33 @@ html_string2 = f"""
         box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
         background-color: #fdfaf6;
         width: 100%;
-        max-width: 670px;
-        margin: 20px auto;
+        max-width: 664px;  /* desktop size as before (iframe used to be fixed at 680px) */
+        margin: 20px 0;
+      }}
+      .plot-box {{
+        max-width: 600px;
       }}
       body {{
           margin: 10;
           padding: 10;
       }}
-      @media (max-width: 1200px) {{
+      @media (max-width: 640px) {{
+          /* on touch screens the plotly toolbar stays visible and covers the plot */
+          .modebar-container {{
+              display: none !important;
+          }}
           .victorian-frame {{
-              max-width: 100%;
+              padding: 10px;
+              margin: 10px 0;
           }}
       }}
     </style>
   </head>
   <body>
     <div class="victorian-frame">
-      {fig_saisonverlauf.to_html(include_plotlyjs='cdn', full_html=False)}
+      <div class="plot-box">
+        {fig_saisonverlauf.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}, post_script=CHART_FIT_JS)}
+      </div>
     </div>
   </body>
 </html>
@@ -347,32 +426,32 @@ styled_df_place_season = df_place_season.style.background_gradient(cmap=custom_c
 tab1, tab2, tab3 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft"])
 
 with tab1:
-    components.html(html_string, height=510, width=680)
+    components.html(html_string, height=510)
 
 
 
 with tab2:
-    components.html(html_string2, height=500, width=680)
+    components.html(html_string2, height=500)
 
 
 
 with tab3:
     st.markdown('<h3 class="custom-title">Durchschnittliche Produktion <br>pro Lehen</h3>', unsafe_allow_html=True)
-    st.markdown(styled_df_p.to_html(), unsafe_allow_html=True)
+    st.markdown('<div class="table-scroll">' + styled_df_p.to_html() + '</div>', unsafe_allow_html=True)
     
     st.markdown('<h3 class="custom-title">Durchschnittliche Gesamtproduktion <br>nach Jahr</h3>', unsafe_allow_html=True)
-    st.markdown(styled_df_t.to_html(), unsafe_allow_html=True)
+    st.markdown('<div class="table-scroll">' + styled_df_t.to_html() + '</div>', unsafe_allow_html=True)
     
     st.markdown('<h3 class="custom-title">Anteile einzelner Lehen <br>an Gesamtproduktion <br>(kumuliert)</h3>', unsafe_allow_html=True)
-    st.markdown(styled_ratio_df.to_html(), unsafe_allow_html=True)
+    st.markdown('<div class="table-scroll">' + styled_ratio_df.to_html() + '</div>', unsafe_allow_html=True)
     
     st.markdown('<h3 class="custom-title">Anteile einzelner Lehen <br>an Gesamtproduktion <br>(Spielbasis)</h3>', unsafe_allow_html=True)
-    st.markdown(styled_share_df.to_html(), unsafe_allow_html=True)
+    st.markdown('<div class="table-scroll">' + styled_share_df.to_html() + '</div>', unsafe_allow_html=True)
 
     st.markdown('<h3 class="custom-title">Durchschnittlicher Produktionsanteil <br>nach Platzierung</h3>', unsafe_allow_html=True)
-    st.markdown(styled_df_place.to_html(), unsafe_allow_html=True)  
+    st.markdown('<div class="table-scroll">' + styled_df_place.to_html() + '</div>', unsafe_allow_html=True)  
 
     st.markdown('<h3 class="custom-title">Durchschnittlicher Produktionsanteil <br>nach Platzierung und Jahr</h3>', unsafe_allow_html=True)
-    st.markdown(styled_df_place_season.to_html(), unsafe_allow_html=True)
+    st.markdown('<div class="table-scroll">' + styled_df_place_season.to_html() + '</div>', unsafe_allow_html=True)
 
 
