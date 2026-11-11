@@ -1,0 +1,2 @@
+# Windows-Skripte brauchen CRLF, sonst funktionieren Sprungmarken (goto) nicht zuverlaessig
+*.bat text eol=crlf
