@@ -1,0 +1,34 @@
+{
+  "hexes": {
+    "A1": ["ore", 10],   "A2": ["sheep", 2],  "A3": ["wood", 9],
+    "B1": ["grain", 12], "B2": ["clay", 6],   "B3": ["sheep", 4], "B4": ["clay", 10],
+    "C1": ["grain", 9],  "C2": ["wood", 11],  "C3": ["desert", null], "C4": ["wood", 3], "C5": ["ore", 8],
+    "D1": ["wood", 8],   "D2": ["ore", 3],    "D3": ["grain", 4], "D4": ["sheep", 5],
+    "E1": ["clay", 5],   "E2": ["grain", 6],  "E3": ["sheep", 11]
+  },
+  "harbors": [
+    {"edge": "A1:NW-N",  "type": "gen"},
+    {"edge": "A2:N-NE",  "type": "sheep"},
+    {"edge": "A3:NE-SE", "type": "gen"},
+    {"edge": "B4:NE-SE", "type": "ore"},
+    {"edge": "C5:SE-S",  "type": "gen"},
+    {"edge": "D4:SE-S",  "type": "wood"},
+    {"edge": "E2:SE-S",  "type": "clay"},
+    {"edge": "E1:SW-NW", "type": "gen"},
+    {"edge": "C1:NW-N",  "type": "grain"}
+  ],
+  "players": {
+    "yellow": {
+      "buildings": [{"at": "A1:SE", "type": "settlement"}, {"at": "B2:S", "type": "city"}],
+      "roads": ["A2:SW-NW", "B2:S-SE"]
+    },
+    "blue": {
+      "buildings": [{"at": "C5:SE", "type": "settlement"}, {"at": "C4:N", "type": "city"}],
+      "roads": ["C5:SE-NE", "C4:N-NW"]
+    },
+    "red": {
+      "buildings": [{"at": "E1:N", "type": "settlement"}, {"at": "D4:N", "type": "city"}],
+      "roads": ["E1:N-NW", "D4:N-NE"]
+    }
+  }
+}
