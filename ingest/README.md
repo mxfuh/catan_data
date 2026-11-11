@@ -15,6 +15,15 @@ python ingest/catan_board.py --reference referenz.png      # Bild der Benennung
 python ingest/test_board.py                                # Tests
 ```
 
+Eintragen in die Excel (siehe unten):
+
+```
+python ingest/excel_rows.py pregame catan_data.xlsx brett.json --order MF,JHC,PF --loc "Tabua (Madeira)"
+python ingest/excel_rows.py result  catan_data.xlsx "MF 6 (1), JHC 14 (8), PF 11 (4)"
+python ingest/excel_rows.py places  catan_data.xlsx       # bekannte Orte, offene Spiele
+python ingest/test_excel_rows.py                           # Tests (auf einer Kopie)
+```
+
 ## Benennung
 
 ![Benennung](referenz.png)
@@ -63,3 +72,23 @@ Siehe [examples/example_board.json](examples/example_board.json).
 - **`port_X`:** Ein eigenes Gebäude steht auf einer der beiden Ecken eines X-Hafens.
 - **`prox_port_X`:** Eine Hafenecke ist mit genau einer weiteren Straße plus einer Siedlung erreichbar, und zwar vom Ende einer eigenen Straße aus. Es zählt nicht, wenn dafür zwei Straßen nötig wären, und auch nicht, wenn ein anderer Spieler den Weg versperrt: mit einer Straße auf dieser Kante oder mit einem Gebäude auf der Ecke oder daneben (Abstandsregel). Ist `port_X` = 1, bleibt `prox_port_X` = 0, wie in den bisherigen Daten.
 - **`desert`:** `outer` (äußerer Ring), `second` (zweiter Ring) oder `center`.
+
+## Excel schreiben (`excel_rows.py`)
+
+`openpyxl` darf die Excel nicht speichern: Dabei gehen die berechneten Werte der Formeln (`geoloc`, `sum`) und die Auswahllisten verloren.
+`excel_rows.py` ändert deshalb direkt das XML in der Datei und fügt nur die neuen Zellen ein. Danach prüft es, dass alle bisherigen Zellen und alle anderen Teile der Datei unverändert sind. Sonst bricht es ab, ohne zu schreiben.
+
+- **pregame:** Legt drei Zeilen in Startreihenfolge an. Saison = Jahr des Datums, Spiel = letztes der Saison + 1, Datum = heute (oder `--date`). Die Werte rechnet `board.py`; Formeln für `geoloc` und `sum` mit vorberechnetem Wert. Punkte, Sonder-SP und Platz bleiben leer.
+- **Neuer Ort:** braucht `--coords` (dezimal `32.68325, -17.06956` oder Google-Maps-Grad `32°41'00.0"N 17°04'10.4"W`). Der Ort kommt in Sheet2 Spalte I/J. Neue Zeilen schlagen in `Sheet2!$I$1:$J$200` nach, alte bleiben bei `$J$13`.
+- **result:** Füllt Punkte, Sonder-SP und Platz im einzigen offenen Spiel (oder `--game 2026/29`). Plätze kommen aus den Punkten; bei Gleichstand müssen sie angegeben werden (`MF 10 (2) Platz 1, …`).
+
+## Ablauf über Discord
+
+Auf dem VPS ruft der Discord-Claude nur `~/catan-ingest/bin/catan` auf. Das Skript holt vor jedem Schreiben den aktuellen Stand von main, trägt ein, committet und pusht auf main. Wird der Push abgelehnt, weil parallel jemand gepusht hat, holt es den neuen Stand und trägt neu ein.
+
+1. Max schickt das Foto mit Reihenfolge und Ort.
+2. Claude erkennt das Brett und schickt Skizze und Werte zurück.
+3. Nach Max' „passt“ werden die Zeilen eingetragen, und die Prognose kommt automatisch.
+4. Nach dem Spiel genügt eine Nachricht wie `MF 6 (1), JHC 14 (8), PF 11 (4)`.
+
+Fotos landen nie im Repo. Wer lieber selbst einträgt, nimmt weiter `catan_bearbeiten.bat`. Weil beide Wege vor dem Schreiben den aktuellen Stand holen, kommen sie sich nicht in die Quere.
