@@ -953,3 +953,9 @@ season,game,player,variant,pred_score,source,computed
 2026,32,PF,no_player,8.84,oof,2026-11-12
 2026,32,PF,with_player,9.70,live,2026-11-12
 2026,32,PF,with_player,9.51,oof,2026-11-12
+2026,33,JHC,no_player,9.99,live,2026-11-12
+2026,33,JHC,with_player,9.64,live,2026-11-12
+2026,33,MF,no_player,8.99,live,2026-11-12
+2026,33,MF,with_player,8.53,live,2026-11-12
+2026,33,PF,no_player,10.48,live,2026-11-12
+2026,33,PF,with_player,11.19,live,2026-11-12
