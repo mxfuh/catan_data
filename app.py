@@ -737,9 +737,9 @@ def form_card(row):
 
 if not form.empty:
     oof_day = pd.to_datetime(form.loc[form["oof"], "computed"]).max()
-    oof_note = (f'* enthält rückgerechnete Weissagungen (Out-of-Fold, berechnet am {oof_day:%d.%m.%Y}): '
-                'Das Modell kannte das Spiel nicht, die Weissagung entstand aber erst nachträglich. '
-                'Ohne Sternchen bzw. durchgezogene Linie: tatsächlich verkündete Weissagungen.') if pd.notna(oof_day) else ""
+    oof_note = (f'* enthält rückgerechnete Prophezeiungen (Out-of-Fold, berechnet am {oof_day:%d.%m.%Y}): '
+                'Das Modell kannte das Spiel nicht, die Prophezeiung entstand aber erst nachträglich. '
+                'Ohne Sternchen bzw. durchgezogene Linie: tatsächlich verkündete Prophezeiungen.') if pd.notna(oof_day) else ""
 
     current = current_form(form)
     form_cards_html = ""
@@ -785,7 +785,7 @@ if not form.empty:
 
     form_charts = {v: form_chart(v) for v in FORM_VARIANTS}
 
-    # Same chart with Erwins Weissagung itself (rolling average of the predicted points)
+    # Same chart with Erwins Prophezeiung itself (rolling average of the predicted points)
     by = hist.groupby(["variant", "player"])
     hist["pred_rolling"] = by["pred_score"].transform(
         lambda s: s.rolling(FORM_HISTORY_WINDOW, min_periods=FORM_HISTORY_WINDOW).mean())
@@ -804,7 +804,7 @@ if not form.empty:
                     line=dict(color=player_colors[player], width=2, dash=dash),
                     customdata=part[["season", "game"]],
                     hovertemplate=f"Spieler: {player}<br>Saison %{{customdata[0]}}, Spiel %{{customdata[1]}}<br>"
-                                  f"Ø Weissagung letzte {FORM_HISTORY_WINDOW}: %{{y:.1f}}<extra></extra>"))
+                                  f"Ø Prophezeiung letzte {FORM_HISTORY_WINDOW}: %{{y:.1f}}<extra></extra>"))
         for season, g in hist.groupby("season"):
             fig.add_vline(x=g["seq"].min() - 0.5, line=dict(color="#e0c9a6", width=1))
             fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(season), showarrow=False,
@@ -898,9 +898,9 @@ with tab4:
 with tab5:
     st.markdown('<h3 class="custom-title">Bumbas Segen</h3>', unsafe_allow_html=True)
     if form.empty:
-        st.markdown('<div class="custom-caption">Erwin hat noch nichts geweissagt.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-caption">Erwin hat noch nichts prophezeit.</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Erwins Weissagung (der Prognose), Schnitt der letzten {FORM_WINDOW} Spiele. '
+        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Erwins Prophezeiung (der Prognose), Schnitt der letzten {FORM_WINDOW} Spiele. '
                     'Mit Spieler-Info: verglichen mit dem eigenen Normalniveau. Ohne: was man aus seiner Setzung macht. '
                     'Flamme: rot = von Bumba gesegnet (ab +2), orange = in Bumbas Gunst (ab +1), gelb = geduldet (ab 0), '
                     'grau = von Bumba verlassen.</div>', unsafe_allow_html=True)
@@ -914,13 +914,13 @@ with tab5:
         st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
-        st.markdown('<h3 class="custom-title">Erwins Weissagung</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="custom-title">Erwins Prophezeiung</h3>', unsafe_allow_html=True)
         chosen_p = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
                             index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
                             label_visibility="collapsed", key="prophecy_variant")
         variant_p = next(v for v, t in FORM_VARIANTS.items() if t == chosen_p)
         embed_html(prophecy_charts[variant_p], height=400)
-        st.markdown(f'<div class="custom-caption">Erwins Weissagung in Punkten, gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele. '
+        st.markdown(f'<div class="custom-caption">Erwins Prophezeiung in Punkten, gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele. '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Segen nach Jahr</h3>', unsafe_allow_html=True)
