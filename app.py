@@ -12,7 +12,8 @@ import catan_functions
 # reloading makes sure new functions in catan_functions.py are picked up without rebooting the app.
 importlib.reload(catan_functions)
 from catan_functions import (fit_excel_into_df, create_hover_data, location_rulers, hall_of_fame,
-                             eternal_table, start_position_table)
+                             eternal_table, start_position_table, form_table, current_form, form_history,
+                             form_by_season, FORM_WINDOW, FORM_HISTORY_WINDOW, FORM_VARIANTS)
 
 
 def embed_html(html, height):
@@ -174,6 +175,64 @@ st.markdown(
                 color: #7a5a44;
                 margin: -6px 0 18px;
             }
+            /* Form: one card per player with flame, 5-game average and the last five games */
+            .form-variant {
+                font-family: 'Castellar', serif;
+                font-size: 15px;
+                color: #8B4513;
+                margin: 8px 0 4px;
+            }
+            .form-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
+                margin: 6px 0 20px;
+                max-width: 664px;
+            }
+            .form-card {
+                background-color: #fdfaf6;
+                border: 3px solid #8B4513;
+                border-radius: 12px;
+                box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.25);
+                padding: 10px 6px 8px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+            }
+            .form-flame {
+                height: 60px;
+                display: flex;
+                align-items: flex-end;
+            }
+            .form-value {
+                font-family: 'Castellar', serif;
+                font-size: 24px;
+                color: #4B2E1F;
+                line-height: 1.2;
+            }
+            .form-trend {
+                font-size: 11px;
+                color: #7a5a44;
+            }
+            .form-last {
+                display: flex;
+                gap: 3px;
+                margin-top: 4px;
+            }
+            .form-chip {
+                font-size: 10px;
+                min-width: 22px;
+                padding: 1px 2px;
+                border-radius: 4px;
+                color: #4B2E1F;
+            }
+            @media (max-width: 640px) {
+                .form-grid { gap: 6px; }
+                .form-value { font-size: 18px; }
+                .form-chip { min-width: 0; font-size: 9px; }
+            }
             /* Tables scroll sideways instead of running off the screen */
             .table-scroll {
                 overflow-x: auto;
@@ -187,7 +246,7 @@ st.markdown(
                 }
                 [data-baseweb="tab-list"], [role="tablist"] {
                     gap: 6px !important;
-                    flex-wrap: wrap !important;  /* four tabs: two rows instead of hidden tabs */
+                    flex-wrap: wrap !important;  /* five tabs: two rows instead of hidden tabs */
                     row-gap: 8px !important;
                 }
                 [role="tab"] {
@@ -468,7 +527,9 @@ CHART_FIT_JS = fit_on_resize_js("""
                    : {'title.font.size': 22, 'title.x': 0.5, 'updatemenus[0].x': 0.05};
 """)
 
-html_string2 = f"""
+# Plotly figure in the parchment frame (used by Geschichte and Form)
+def chart_frame(fig_html):
+    return f"""
 <html>
   <head>
     <style>
@@ -512,12 +573,16 @@ html_string2 = f"""
   <body>
     <div class="victorian-frame">
       <div class="plot-box">
-        {fig_saisonverlauf.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}, post_script=CHART_FIT_JS)}
+        {fig_html}
       </div>
     </div>
   </body>
 </html>
 """
+
+
+html_string2 = chart_frame(fig_saisonverlauf.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True},
+                                                     post_script=CHART_FIT_JS))
 
 
 ##############################################
@@ -608,6 +673,118 @@ n_games = data.loc[data["complete"], "game_id"].nunique()
 hall_html = '<div class="hall-grid">' + "".join(hall_card(r) for r in records) + '</div>'
 
 
+##############################################
+################ Form (Ist vs. Prognose) #####
+##############################################
+
+form = form_table(data, "predict/predictions.csv")
+
+
+def flame(value):
+    """Flame from big/red (clearly above the prediction) to small/grey (below)."""
+    if value >= 2:
+        color, size = "#C0392B", 58
+    elif value >= 1:
+        color, size = "#E67E22", 48
+    elif value >= 0:
+        color, size = "#F4C430", 38
+    else:
+        color, size = "#A39E98", 30
+    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" aria-hidden="true">'
+            f'<path fill="{color}" d="M12 1.5c.6 3.2-1.4 5-3.1 6.9C7.2 10.3 5.5 12.4 5.5 15.4c0 3.9 2.9 7.1 6.5 7.1'
+            f's6.5-3.2 6.5-7.1c0-2.8-1.4-4.6-2.6-6.1-.3 1.5-1 2.6-2.1 3.1.4-3.5-.4-7.4-1.8-10.9z"/>'
+            '<path fill="#fdfaf6" fill-opacity="0.45" d="M12 13c.3 1.6-.7 2.4-1.5 3.3-.6.7-1 1.4-1 2.4'
+            ' 0 1.6 1.1 2.8 2.5 2.8s2.5-1.2 2.5-2.8c0-1.4-.8-2.3-1.4-3-.1.7-.5 1.2-1 1.4.1-1.5-.1-2.8-.1-4.1z"/>'
+            '</svg>')
+
+
+def signed(value, star=False):
+    return f"{value:+.1f}".replace("-", "−") + ("*" if star else "")
+
+
+def form_card(row):
+    color = player_colors.get(row["player"], "#8B4513")
+    if pd.isna(row["prev"]):
+        trend = ""
+    else:
+        delta = row["form"] - row["prev"]
+        arrow = "↑" if delta > 0.05 else "↓" if delta < -0.05 else "→"
+        trend = f'{arrow} {signed(delta)} zu den {FORM_WINDOW} Spielen davor'
+    chips = "".join(
+        f'<span class="form-chip" style="background-color: {"#f3c9a0" if v > 0 else "#e4e0db"};">{signed(v)}</span>'
+        for v in row["last"])
+    return ('<div class="form-card">'
+            f'<div class="hall-holder"><span class="hall-seal" style="background-color: {color};"></span>{html.escape(row["player"])}</div>'
+            f'<div class="form-flame">{flame(row["form"])}</div>'
+            f'<div class="form-value">{signed(row["form"], row["oof"])}</div>'
+            f'<div class="form-trend">{trend}</div>'
+            f'<div class="form-last">{chips}</div>'
+            '</div>')
+
+
+if not form.empty:
+    oof_day = pd.to_datetime(form.loc[form["oof"], "computed"]).max()
+    oof_note = (f'* enthält rückgerechnete Prognosen (Out-of-Fold, berechnet am {oof_day:%d.%m.%Y}): '
+                'Das Modell kannte das Spiel nicht, die Prognose entstand aber erst nachträglich. '
+                'Ohne Sternchen bzw. durchgezogene Linie: tatsächlich verschickte Prognosen.') if pd.notna(oof_day) else ""
+
+    current = current_form(form)
+    form_cards_html = ""
+    for variant, title in FORM_VARIANTS.items():
+        rows = current[current["variant"] == variant].set_index("player").reindex(
+            [p for p in player_colors if p in set(current["player"])]).reset_index()
+        form_cards_html += (f'<div class="form-variant">{title}</div><div class="form-grid">'
+                            + "".join(form_card(r) for _, r in rows.iterrows()) + '</div>')
+
+    # History: rolling average per player; dashed while a back-calculated value is in the window
+    hist = form_history(form, FORM_HISTORY_WINDOW)
+    game_seq = {g: i + 1 for i, g in enumerate(sorted(hist["game_id"].unique()))}
+    hist["seq"] = hist["game_id"].map(game_seq)
+    def form_chart(variant):
+        fig = go.Figure()
+        for player in player_colors:
+            h = hist[(hist["variant"] == variant) & (hist["player"] == player)].dropna(subset=["rolling"])
+            calc, live = h[h["rolling_oof"]], h[~h["rolling_oof"]]
+            if not calc.empty and not live.empty:
+                live = pd.concat([calc.tail(1), live])  # connect both parts
+            for part, dash in [(calc, "dash"), (live, "solid")]:
+                if part.empty:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=part["seq"], y=part["rolling"], mode="lines", name=player,
+                    line=dict(color=player_colors[player], width=2, dash=dash),
+                    customdata=part[["season", "game"]],
+                    hovertemplate=f"Spieler: {player}<br>Saison %{{customdata[0]}}, Spiel %{{customdata[1]}}<br>"
+                                  f"Ø letzte {FORM_HISTORY_WINDOW}: %{{y:+.1f}}<extra></extra>"))
+        fig.add_hline(y=0, line=dict(color="#8B4513", width=1))
+        # season boundaries as light lines with the year above
+        for season, g in hist.groupby("season"):
+            fig.add_vline(x=g["seq"].min() - 0.5, line=dict(color="#e0c9a6", width=1))
+            fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(season), showarrow=False,
+                               xanchor="left", yanchor="bottom", font=dict(size=10, color="#7a5a44"))
+        fig.update_layout(
+            showlegend=False, autosize=True, height=330,
+            margin=dict(l=30, r=4, t=24, b=4),
+            paper_bgcolor="#fdfaf6", plot_bgcolor="#fdfaf6",
+            xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, zeroline=False, tickformat="+.0f", tickfont=dict(color="#7a5a44")))
+        return chart_frame(fig.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}))
+
+    form_charts = {v: form_chart(v) for v in FORM_VARIANTS}
+
+    def season_table(variant):
+        mean, oof = form_by_season(form)[variant]
+        cols = [p for p in player_colors if p in mean.columns]
+        mean, oof = mean[cols], oof[cols]
+        text = mean.apply(lambda c: [("" if pd.isna(v) else signed(v, oof.at[s, c.name])) for s, v in c.items()])
+        lim = max(abs(mean.min().min()), abs(mean.max().max()), 1)
+        diverging = mcolors.LinearSegmentedColormap.from_list("form", ["#bdb5aa", "#fdfaf6", "#d9773a"])
+        colors = mean.apply(lambda c: [f"background-color: {mcolors.to_hex(diverging((v / lim + 1) / 2))}"
+                                       if pd.notna(v) else "" for v in c])
+        text.index.name, text.columns.name = None, "Saison"
+        return text.style.apply(lambda _: colors.values, axis=None)
+
+
 
 
 
@@ -616,7 +793,7 @@ hall_html = '<div class="hall-grid">' + "".join(hall_card(r) for r in records) +
 ##############################################
 
 # Use st.tabs for a more integrated navigation experience.
-tab1, tab2, tab3, tab4 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft", "Ruhmeshalle"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft", "Ruhmeshalle", "Form"])
 
 with tab1:
     embed_html(html_string, height=510)
@@ -671,3 +848,26 @@ with tab4:
         st.markdown('<div class="custom-caption">Noch kein Spiel abgeschlossen.</div>', unsafe_allow_html=True)
 
 
+with tab5:
+    st.markdown('<h3 class="custom-title">Form</h3>', unsafe_allow_html=True)
+    if form.empty:
+        st.markdown('<div class="custom-caption">Noch keine Prognosen gespeichert.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Prognose, Schnitt der letzten {FORM_WINDOW} Spiele. '
+                    'Mit Spieler-Info: verglichen mit dem eigenen Normalniveau. Ohne: was man aus seiner Setzung macht. '
+                    'Flamme: rot ab +2, orange ab +1, gelb ab 0, grau darunter.</div>', unsafe_allow_html=True)
+        st.markdown(form_cards_html, unsafe_allow_html=True)
+
+        st.markdown('<h3 class="custom-title">Formkurve</h3>', unsafe_allow_html=True)
+        chosen = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
+                          label_visibility="collapsed", key="form_variant")
+        embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
+        st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
+                    'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
+
+        st.markdown('<h3 class="custom-title">Form nach Jahr</h3>', unsafe_allow_html=True)
+        for variant, title in FORM_VARIANTS.items():
+            st.markdown(f'<div class="form-variant">{title}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="table-scroll">' + season_table(variant).to_html() + '</div>', unsafe_allow_html=True)
+        if oof_note:
+            st.markdown(f'<div class="custom-caption">{oof_note}</div>', unsafe_allow_html=True)

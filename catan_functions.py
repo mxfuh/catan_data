@@ -313,3 +313,60 @@ def start_position_table(data):
     return t.rename(columns={"Punkte": "Ø Punkte", "Platz": "Ø Platz",
                              "Produktion": "Ø Gesamtproduktion", "Handelswaren": "Ø Handelswaren"})
 
+
+
+##############################################
+################ Form-Tab ####################
+##############################################
+
+FORM_WINDOW = 5           # "derzeit": letzte 5 Spiele
+FORM_HISTORY_WINDOW = 10  # Formkurve: ruhiger über 10 Spiele
+FORM_VARIANTS = {"with_player": "Mit Spieler-Info", "no_player": "Ohne Spieler-Info"}
+
+
+def form_table(data, pred_file):
+    """Ist-Punkte minus Prognose je Spiel, Spieler und Variante. Echte (gesendete) Prognosen haben Vorrang;
+    sonst die rückgerechnete Out-of-Fold-Prognose (oof=True, computed = Rechendatum)."""
+    import os
+    import pandas as pd
+    if not os.path.exists(pred_file):
+        return pd.DataFrame()
+    preds = pd.read_csv(pred_file)
+    preds["oof"] = preds["source"] == "oof"
+    # live vor oof: nach oof sortieren und je Schlüssel den ersten Eintrag nehmen
+    preds = preds.sort_values("oof").drop_duplicates(["season", "game", "player", "variant"])
+    played = _played(data)[["game_id", "season", "game", "player", "score"]]
+    t = played.merge(preds, on=["season", "game", "player"])
+    t["resid"] = t["score"] - t["pred_score"]
+    return t.sort_values(["variant", "player", "game_id"]).reset_index(drop=True)
+
+
+def current_form(form):
+    """Je Variante und Spieler: Schnitt der letzten FORM_WINDOW Spiele, die Spiele davor zum Vergleich."""
+    import pandas as pd
+    rows = []
+    for (variant, player), g in form.groupby(["variant", "player"]):
+        last, prev = g.tail(FORM_WINDOW), g.iloc[:-FORM_WINDOW].tail(FORM_WINDOW)
+        rows.append({"variant": variant, "player": player, "form": last["resid"].mean(),
+                     "prev": prev["resid"].mean() if len(prev) else float("nan"),
+                     "last": list(last["resid"]), "oof": bool(last["oof"].any())})
+    return pd.DataFrame(rows)
+
+
+def form_history(form, window=FORM_HISTORY_WINDOW):
+    """Gleitender Schnitt über window Spiele je Spieler; rolling_oof, wenn ein rückgerechneter Wert im Fenster ist."""
+    t = form.copy()
+    by = t.groupby(["variant", "player"])
+    t["rolling"] = by["resid"].transform(lambda s: s.rolling(window, min_periods=window).mean())
+    t["rolling_oof"] = by["oof"].transform(lambda s: s.rolling(window, min_periods=1).max()).astype(bool)
+    return t
+
+
+def form_by_season(form):
+    """Ø Abweichung je Saison (Zeilen) und Spieler (Spalten) für jede Variante; Sternchen, wenn Rückrechnung drin."""
+    out = {}
+    for variant, g in form.groupby("variant"):
+        mean = g.pivot_table(index="season", columns="player", values="resid", aggfunc="mean")
+        oof = g.pivot_table(index="season", columns="player", values="oof", aggfunc="max").astype(bool)
+        out[variant] = (mean, oof)
+    return out
