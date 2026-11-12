@@ -785,6 +785,40 @@ if not form.empty:
 
     form_charts = {v: form_chart(v) for v in FORM_VARIANTS}
 
+    # Same chart with Erwins Weissagung itself (rolling average of the predicted points)
+    by = hist.groupby(["variant", "player"])
+    hist["pred_rolling"] = by["pred_score"].transform(
+        lambda s: s.rolling(FORM_HISTORY_WINDOW, min_periods=FORM_HISTORY_WINDOW).mean())
+    def prophecy_chart(variant):
+        fig = go.Figure()
+        for player in player_colors:
+            h = hist[(hist["variant"] == variant) & (hist["player"] == player)].dropna(subset=["pred_rolling"])
+            calc, live = h[h["rolling_oof"]], h[~h["rolling_oof"]]
+            if not calc.empty and not live.empty:
+                live = pd.concat([calc.tail(1), live])  # connect both parts
+            for part, dash in [(calc, "dash"), (live, "solid")]:
+                if part.empty:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=part["seq"], y=part["pred_rolling"], mode="lines", name=player,
+                    line=dict(color=player_colors[player], width=2, dash=dash),
+                    customdata=part[["season", "game"]],
+                    hovertemplate=f"Spieler: {player}<br>Saison %{{customdata[0]}}, Spiel %{{customdata[1]}}<br>"
+                                  f"Ø Weissagung letzte {FORM_HISTORY_WINDOW}: %{{y:.1f}}<extra></extra>"))
+        for season, g in hist.groupby("season"):
+            fig.add_vline(x=g["seq"].min() - 0.5, line=dict(color="#e0c9a6", width=1))
+            fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(season), showarrow=False,
+                               xanchor="left", yanchor="bottom", font=dict(size=10, color="#7a5a44"))
+        fig.update_layout(
+            showlegend=False, autosize=True, height=330,
+            margin=dict(l=30, r=4, t=24, b=4),
+            paper_bgcolor="#fdfaf6", plot_bgcolor="#fdfaf6",
+            xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=False, zeroline=False, tickformat=".1f", tickfont=dict(color="#7a5a44")))
+        return chart_frame(fig.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}))
+
+    prophecy_charts = {v: prophecy_chart(v) for v in FORM_VARIANTS}
+
     def season_table(variant):
         mean, oof = form_by_season(form)[variant]
         cols = [p for p in player_colors if p in mean.columns]
@@ -878,6 +912,15 @@ with tab5:
                           label_visibility="collapsed", key="form_variant")
         embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
         st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
+                    'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
+
+        st.markdown('<h3 class="custom-title">Erwins Weissagung</h3>', unsafe_allow_html=True)
+        chosen_p = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
+                            index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
+                            label_visibility="collapsed", key="prophecy_variant")
+        variant_p = next(v for v, t in FORM_VARIANTS.items() if t == chosen_p)
+        embed_html(prophecy_charts[variant_p], height=400)
+        st.markdown(f'<div class="custom-caption">Erwins Weissagung in Punkten, gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele. '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Segen nach Jahr</h3>', unsafe_allow_html=True)
