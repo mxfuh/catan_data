@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import matplotlib.colors as mcolors
 
 import importlib
@@ -785,6 +786,72 @@ if not form.empty:
 
     form_charts = {v: form_chart(v) for v in FORM_VARIANTS}
 
+    PROPHECY_WINDOW = 30
+
+    # Per game: Erwins Weissagung (line, dashed = back-calculated) vs. actual points (dots), one panel per player
+    form["seq"] = form["game_id"].map(game_seq)
+    def prophecy_chart(variant):
+        players = [p for p in player_colors if p in set(form["player"])]
+        fig = make_subplots(rows=len(players), cols=1, shared_xaxes=True, vertical_spacing=0.05)
+        for i, player in enumerate(players, start=1):
+            g = form[(form["variant"] == variant) & (form["player"] == player)]
+            color = player_colors[player]
+            calc, live = g[g["oof"]], g[~g["oof"]]
+            if not calc.empty and not live.empty:
+                live = pd.concat([calc.tail(1), live])  # connect both parts
+            for part, dash in [(calc, "dot"), (live, "solid")]:
+                if part.empty:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=part["seq"], y=part["pred_score"], mode="lines",
+                    line=dict(color=color, width=1.5, dash=dash), opacity=0.8, hoverinfo="skip"), row=i, col=1)
+            fig.add_trace(go.Scatter(
+                x=g["seq"], y=g["score"], mode="markers",
+                marker=dict(color=color, size=5, line=dict(color="#fdfaf6", width=0.5)),
+                customdata=list(zip(g["season"], g["game"], g["pred_score"], g["resid"],
+                                    g["oof"].map({True: " (rückgerechnet)", False: ""}))),
+                hovertemplate=f"{player} · Saison %{{customdata[0]}}, Spiel %{{customdata[1]}}<br>"
+                              "Ist: %{y:.0f} · Weissagung: %{customdata[2]:.1f}%{customdata[4]}<br>"
+                              "Abweichung: %{customdata[3]:+.1f}<extra></extra>"), row=i, col=1)
+            fig.add_annotation(x=0, y=1, xref="x domain", yref="y domain" if i == 1 else f"y{i} domain",
+                               text=player, showarrow=False, xanchor="left", yanchor="top",
+                               font=dict(size=11, color=color))
+        for season, g in form.groupby("season"):
+            for i in range(1, len(players) + 1):
+                fig.add_vline(x=g["seq"].min() - 0.5, line=dict(color="#e0c9a6", width=1), row=i, col=1)
+            fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(season), showarrow=False,
+                               xanchor="left", yanchor="bottom", font=dict(size=10, color="#7a5a44"))
+        # start on the most recent games; drag to look further back
+        last = form["seq"].max()
+        fig.update_layout(
+            showlegend=False, autosize=True, height=150 * len(players) + 30,
+            margin=dict(l=30, r=4, t=24, b=4), dragmode="pan",
+            paper_bgcolor="#fdfaf6", plot_bgcolor="#fdfaf6")
+        fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False,
+                         range=[last - PROPHECY_WINDOW + 0.5, last + 0.5])
+        fig.update_yaxes(showgrid=False, zeroline=False, tickfont=dict(color="#7a5a44"), nticks=4,
+                         range=[0, form["score"].max() + 2], fixedrange=True)
+        return chart_frame(fig.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}))
+
+    prophecy_charts = {v: prophecy_chart(v) for v in FORM_VARIANTS}
+
+    def prophecy_table(variant, n=8):
+        """Last n games: Weissagung → Ist per player, asterisk on back-calculated values."""
+        g = form[form["variant"] == variant]
+        games = sorted(g["game_id"].unique())[-n:][::-1]
+        g = g[g["game_id"].isin(games)]
+        cell = g.apply(lambda r: f'{r["pred_score"]:.1f}{"*" if r["oof"] else ""} → {r["score"]:.0f}', axis=1)
+        t = g.assign(cell=cell, label=g["season"].astype(str) + "/" + g["game"].astype(str)).pivot(
+            index=["game_id", "label"], columns="player", values="cell").sort_index(ascending=False)
+        t = t.droplevel(0)[[p for p in player_colors if p in t.columns]].fillna("")
+        resid = g.pivot(index="game_id", columns="player", values="resid").sort_index(ascending=False)[t.columns]
+        lim = max(resid.abs().max().max(), 1)
+        diverging = mcolors.LinearSegmentedColormap.from_list("form", ["#bdb5aa", "#fdfaf6", "#d9773a"])
+        colors = resid.apply(lambda c: [f"background-color: {mcolors.to_hex(diverging((v / lim + 1) / 2))}"
+                                        if pd.notna(v) else "" for v in c])
+        t.index.name, t.columns.name = None, "Spiel"
+        return t.style.apply(lambda _: colors.values, axis=None)
+
     def season_table(variant):
         mean, oof = form_by_season(form)[variant]
         cols = [p for p in player_colors if p in mean.columns]
@@ -879,6 +946,19 @@ with tab5:
         embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
         st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
+
+        st.markdown('<h3 class="custom-title">Weissagung &amp; Wirklichkeit</h3>', unsafe_allow_html=True)
+        chosen_p = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
+                            index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
+                            label_visibility="collapsed", key="prophecy_variant")
+        variant_p = next(v for v, t in FORM_VARIANTS.items() if t == chosen_p)
+        embed_html(prophecy_charts[variant_p], height=540)
+        st.markdown(f'<div class="custom-caption">Jedes Spiel einzeln: Linie = Erwins Weissagung, Punkte = tatsächliche Punkte. '
+                    f'Gepunktete Linie: rückgerechnet. Zu sehen sind die letzten {PROPHECY_WINDOW} Spiele, '
+                    'zur Seite ziehen für die ganze Historie.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="table-scroll">' + prophecy_table(variant_p).to_html() + '</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-caption">Letzte Spiele: Weissagung → Ist. Orange = über der Weissagung, grau = darunter.</div>',
+                    unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Segen nach Jahr</h3>', unsafe_allow_html=True)
         for variant, title in FORM_VARIANTS.items():
