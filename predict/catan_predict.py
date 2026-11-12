@@ -9,6 +9,7 @@ Ohne --notify wird die Nachricht nur ausgegeben. Das Modell wird nur neu trainie
 abgeschlossenen Spiele geändert haben; jede Prognose geht pro Spiel (und Stand der Pre-Game-Daten) einmal raus.
 """
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -123,8 +124,8 @@ def predict(model, X):
     return out * model["sy"] + model["my"]
 
 
-def out_of_fold(data, cols, folds=5):
-    """Ehrliche Fehlerschätzung: jedes Spiel wird von einem Modell vorhergesagt, das es nicht gesehen hat."""
+def oof_predictions(data, cols, folds=5):
+    """Jedes Spiel wird von einem Modell vorhergesagt, das es nicht gesehen hat (Spiele bleiben zusammen)."""
     games = data["game_id"].unique()
     np.random.default_rng(0).shuffle(games)
     pred = np.full((len(data), len(TARGETS)), np.nan)
@@ -132,6 +133,12 @@ def out_of_fold(data, cols, folds=5):
         test = data["game_id"].isin(fold).values
         model = fit(data.loc[~test, cols].values.astype(float), data.loc[~test, TARGETS].values.astype(float))
         pred[test] = predict(model, data.loc[test, cols].values.astype(float))
+    return pred
+
+
+def out_of_fold(data, cols, folds=5):
+    """Ehrliche Fehlerschätzung aus den Out-of-Fold-Prognosen."""
+    pred = oof_predictions(data, cols, folds)
     resid = data["score"].values - pred[:, 0]
     baseline = np.abs(data["score"] - data["score"].mean()).mean()
     return {"mae": float(np.abs(resid).mean()), "sigma": float(resid.std()), "mae_baseline": float(baseline)}
@@ -191,7 +198,11 @@ def save_models(state_dir, sig, models):
     torch.save({"sig": sig, "models": plain}, os.path.join(state_dir, "model.pt"))
 
 
-def format_message(game, models):
+def game_predictions(game, models):
+    return {v: predict(m, game[m["cols"]].values.astype(float)) for v, m in models.items()}
+
+
+def format_message(game, models, preds):
     first = game.iloc[0]
     lines = [f"🎲 **Catan-Prognose** · Saison {first['season']}, Spiel {first['game']} · {first['loc']}", "", "**Setzung**"]
     # Gesamtproduktion = Summe der Würfelfrequenzen aller Felder (pro 36 Würfe)
@@ -200,7 +211,7 @@ def format_message(game, models):
                      f" ({row['sum_resources']:.0f} Rohstoffe + {row['sum_tradegoods']:.0f} Handelswaren)")
     for variant, title in VARIANTS.items():
         model = models[variant]
-        pred = predict(model, game[model["cols"]].values.astype(float))
+        pred = preds[variant]
         probs = win_probs(pred[:, 0], model["sigma"])
         lines += ["", f"**{title}**"]
         for rank, i in enumerate(np.argsort(-pred[:, 0]), start=1):
@@ -231,17 +242,93 @@ def notify(text, subject, cfg):
         discord_notify.send(f"⚠️ Catan-Prognose: Mailversand fehlgeschlagen: {e}"[:1900])
 
 
+##############################################
+######## Prognose-Archiv (Form-Tab) ##########
+##############################################
+
+# Jede gesendete Prognose landet in predict/predictions.csv (source=live). Für ältere Spiele gibt es
+# rückgerechnete Out-of-Fold-Werte (source=oof, computed = Rechendatum), die das Dashboard markiert.
+PRED_FILE = os.path.join(REPO, "predict", "predictions.csv")
+PRED_FIELDS = ["season", "game", "player", "variant", "pred_score", "source", "computed"]
+
+
+def _row_key(row):
+    return (int(row["season"]), int(row["game"]), row["player"], row["variant"], row["source"])
+
+
+def read_predictions():
+    import csv
+    if not os.path.exists(PRED_FILE):
+        return []
+    return list(csv.DictReader(open(PRED_FILE, encoding="utf-8")))
+
+
+def write_predictions(rows):
+    import csv
+    rows = sorted({_row_key(r): r for r in rows}.values(), key=_row_key)
+    with open(PRED_FILE, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=PRED_FIELDS, lineterminator="\n")
+        w.writeheader()
+        w.writerows({k: r[k] for k in PRED_FIELDS} for r in rows)
+
+
+def live_rows(game, preds, day):
+    return [{"season": int(row["season"]), "game": int(row["game"]), "player": row["player"], "variant": variant,
+             "pred_score": f"{pred[i, 0]:.2f}", "source": "live", "computed": day}
+            for variant, pred in preds.items() for i, (_, row) in enumerate(game.iterrows())]
+
+
+def sync_predictions(state):
+    """Live-Prognosen aus dem State ins Archiv schreiben und pushen. Klappt der Push nicht (z.B. weil parallel
+    gepusht wurde), holt run.sh beim nächsten Lauf main neu und dieser Schritt versucht es erneut."""
+    import subprocess
+    live = [r for rows in state.get("predictions", {}).values() for r in rows]
+    if not live:
+        return
+    old = read_predictions()
+    write_predictions(old + live)  # gleiche Schlüssel: der State (neueste Prognose) gewinnt
+    if read_predictions() == old:
+        return
+    git = ["git", "-C", REPO]
+    try:
+        subprocess.run(git + ["add", PRED_FILE], check=True)
+        subprocess.run(git + ["commit", "-q", "-m", "Prognose-Archiv aktualisiert",
+                              "-m", "Automatisch vom Prognose-Lauf (predict/catan_predict.py)."], check=True)
+        subprocess.run(git + ["push", "-q", "origin", "HEAD:main"], check=True, timeout=60)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print(f"Prognose-Archiv nicht gepusht, nächster Lauf versucht es erneut: {e}", file=sys.stderr)
+
+
+def backfill(data, day):
+    """Out-of-Fold-Prognosen für alle abgeschlossenen Spiele ins Archiv schreiben (einmalig/bei Bedarf)."""
+    train = data[data["train"]].reset_index(drop=True)
+    rows = [r for r in read_predictions() if r["source"] != "oof"]
+    for variant in VARIANTS:
+        pred = oof_predictions(train, feature_cols(train, variant == "with_player"))
+        rows += [{"season": int(row["season"]), "game": int(row["game"]), "player": row["player"],
+                  "variant": variant, "pred_score": f"{pred[i, 0]:.2f}", "source": "oof", "computed": day}
+                 for i, row in train.iterrows()]
+    write_predictions(rows)
+    print(f"{train['game_id'].nunique()} Spiele rückgerechnet → {PRED_FILE}")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--data", default=os.path.join(REPO, "catan_data.xlsx"))
     p.add_argument("--state", required=True)
     p.add_argument("--notify", action="store_true", help="Discord + Mail senden statt nur ausgeben")
     p.add_argument("--force", action="store_true", help="auch bei unveränderter Excel prüfen")
+    p.add_argument("--backfill", action="store_true",
+                   help="Out-of-Fold-Prognosen aller abgeschlossenen Spiele nach predict/predictions.csv schreiben")
     a = p.parse_args()
+    if a.backfill:
+        return backfill(load(a.data), datetime.date.today().isoformat())
 
     os.makedirs(a.state, exist_ok=True)
     state_path = os.path.join(a.state, "state.json")
     state = json.load(open(state_path, encoding="utf-8")) if os.path.exists(state_path) else {"sent": {}}
+    if a.notify:
+        sync_predictions(state)
     sha = file_sha(a.data)
     if sha == state.get("xlsx_sha") and not a.force:
         return  # Excel unverändert → nichts zu tun (torch wird gar nicht erst geladen)
@@ -263,7 +350,9 @@ def main():
                 key, fp = str(game_id), frame_sha(game[["player"] + PRE_GAME])
                 if state["sent"].get(key) == fp:
                     continue
-                text = format_message(game.reset_index(drop=True), models)
+                game = game.reset_index(drop=True)
+                preds = game_predictions(game, models)
+                text = format_message(game, models, preds)
                 if key in state["sent"]:
                     text = text.replace("Catan-Prognose**", "Catan-Prognose** (aktualisiert)", 1)
                 subject = f"Catan-Prognose Saison {game['season'].iloc[0]}, Spiel {game['game'].iloc[0]}"
@@ -272,6 +361,9 @@ def main():
                 else:
                     print(text + "\n")
                 state["sent"][key] = fp
+                if a.notify:
+                    day = datetime.date.today().isoformat()
+                    state.setdefault("predictions", {})[key] = live_rows(game, preds, day)
     except Exception as e:
         # Einmal pro Excel-Stand melden, nicht alle paar Minuten erneut
         if a.notify:
@@ -282,6 +374,8 @@ def main():
         raise
     state["xlsx_sha"] = sha
     json.dump(state, open(state_path, "w", encoding="utf-8"), indent=1)
+    if a.notify:
+        sync_predictions(state)
 
 
 if __name__ == "__main__":
