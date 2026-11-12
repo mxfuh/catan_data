@@ -212,6 +212,12 @@ st.markdown(
                 color: #4B2E1F;
                 line-height: 1.2;
             }
+            .form-blessing {
+                font-family: 'Castellar', serif;
+                font-size: 11px;
+                color: #8B4513;
+                line-height: 1.3;
+            }
             .form-trend {
                 font-size: 11px;
                 color: #7a5a44;
@@ -680,6 +686,12 @@ hall_html = '<div class="hall-grid">' + "".join(hall_card(r) for r in records) +
 form = form_table(data, "predict/predictions.csv")
 
 
+def blessing(value):
+    """Bumbas Urteil über die Form (gleiche Stufen wie die Flamme)."""
+    return ("Von Bumba gesegnet" if value >= 2 else "In Bumbas Gunst" if value >= 1
+            else "Geduldet" if value >= 0 else "Von Bumba verlassen")
+
+
 def flame(value):
     """Flame from big/red (clearly above the prediction) to small/grey (below)."""
     if value >= 2:
@@ -717,6 +729,7 @@ def form_card(row):
             f'<div class="hall-holder"><span class="hall-seal" style="background-color: {color};"></span>{html.escape(row["player"])}</div>'
             f'<div class="form-flame">{flame(row["form"])}</div>'
             f'<div class="form-value">{signed(row["form"], row["oof"])}</div>'
+            f'<div class="form-blessing">{blessing(row["form"])}</div>'
             f'<div class="form-trend">{trend}</div>'
             f'<div class="form-last">{chips}</div>'
             '</div>')
@@ -724,9 +737,9 @@ def form_card(row):
 
 if not form.empty:
     oof_day = pd.to_datetime(form.loc[form["oof"], "computed"]).max()
-    oof_note = (f'* enthält rückgerechnete Prognosen (Out-of-Fold, berechnet am {oof_day:%d.%m.%Y}): '
-                'Das Modell kannte das Spiel nicht, die Prognose entstand aber erst nachträglich. '
-                'Ohne Sternchen bzw. durchgezogene Linie: tatsächlich verschickte Prognosen.') if pd.notna(oof_day) else ""
+    oof_note = (f'* enthält rückgerechnete Weissagungen (Out-of-Fold, berechnet am {oof_day:%d.%m.%Y}): '
+                'Das Modell kannte das Spiel nicht, die Weissagung entstand aber erst nachträglich. '
+                'Ohne Sternchen bzw. durchgezogene Linie: tatsächlich verkündete Weissagungen.') if pd.notna(oof_day) else ""
 
     current = current_form(form)
     form_cards_html = ""
@@ -793,7 +806,7 @@ if not form.empty:
 ##############################################
 
 # Use st.tabs for a more integrated navigation experience.
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft", "Ruhmeshalle", "Form"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Die Lande", "Geschichte", "Wirtschaft", "Ruhmeshalle", "Bumbas Segen"])
 
 with tab1:
     embed_html(html_string, height=510)
@@ -849,23 +862,24 @@ with tab4:
 
 
 with tab5:
-    st.markdown('<h3 class="custom-title">Form</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="custom-title">Bumbas Segen</h3>', unsafe_allow_html=True)
     if form.empty:
-        st.markdown('<div class="custom-caption">Noch keine Prognosen gespeichert.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-caption">Erwin hat noch nichts geweissagt.</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Prognose, Schnitt der letzten {FORM_WINDOW} Spiele. '
+        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Erwins Weissagung (der Prognose), Schnitt der letzten {FORM_WINDOW} Spiele. '
                     'Mit Spieler-Info: verglichen mit dem eigenen Normalniveau. Ohne: was man aus seiner Setzung macht. '
-                    'Flamme: rot ab +2, orange ab +1, gelb ab 0, grau darunter.</div>', unsafe_allow_html=True)
+                    'Flamme: rot = von Bumba gesegnet (ab +2), orange = in Bumbas Gunst (ab +1), gelb = geduldet (ab 0), '
+                    'grau = von Bumba verlassen.</div>', unsafe_allow_html=True)
         st.markdown(form_cards_html, unsafe_allow_html=True)
 
-        st.markdown('<h3 class="custom-title">Formkurve</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="custom-title">Segenskurve</h3>', unsafe_allow_html=True)
         chosen = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
                           label_visibility="collapsed", key="form_variant")
         embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
         st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
-        st.markdown('<h3 class="custom-title">Form nach Jahr</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="custom-title">Segen nach Jahr</h3>', unsafe_allow_html=True)
         for variant, title in FORM_VARIANTS.items():
             st.markdown(f'<div class="form-variant">{title}</div>', unsafe_allow_html=True)
             st.markdown('<div class="table-scroll">' + season_table(variant).to_html() + '</div>', unsafe_allow_html=True)
