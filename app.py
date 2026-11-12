@@ -401,9 +401,9 @@ for year in years:
         visibility_dict[year].append(trace_idx)
         trace_idx += 1
 
-# Create dropdown buttons to filter by year.
+# Create dropdown buttons to filter by year (newest first).
 dropdown_buttons = []
-for year in years:
+for year in reversed(years):
     vis = [False] * trace_idx
     for idx in visibility_dict[year]:
         vis[idx] = True
@@ -440,8 +440,8 @@ fig_saisonverlauf.update_layout(
 fig_saisonverlauf.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, ticks="")
 fig_saisonverlauf.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, ticks="")
 
-# Set initial visibility to the first year.
-initial_year = years[0]
+# Set initial visibility to the newest year (top entry of the dropdown, shown as active).
+initial_year = years[-1]
 initial_vis = [False] * trace_idx
 for idx in visibility_dict[initial_year]:
     initial_vis[idx] = True
