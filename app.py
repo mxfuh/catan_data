@@ -874,6 +874,7 @@ with tab5:
 
         st.markdown('<h3 class="custom-title">Segenskurve</h3>', unsafe_allow_html=True)
         chosen = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
+                          index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
                           label_visibility="collapsed", key="form_variant")
         embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
         st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
