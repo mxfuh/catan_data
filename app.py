@@ -753,72 +753,77 @@ if not form.empty:
     hist = form_history(form, FORM_HISTORY_WINDOW)
     game_seq = {g: i + 1 for i, g in enumerate(sorted(hist["game_id"].unique()))}
     hist["seq"] = hist["game_id"].map(game_seq)
-    def form_chart(variant):
+    def history_chart(variant, season, y, oof, hover, tickformat, zero_line):
+        """Line per player over the games; dashed where oof is set. season=None shows the whole history."""
+        h_all = hist[hist["variant"] == variant]
+        if season is not None:
+            h_all = h_all[h_all["season"] == season]
         fig = go.Figure()
         for player in player_colors:
-            h = hist[(hist["variant"] == variant) & (hist["player"] == player)].dropna(subset=["rolling"])
-            calc, live = h[h["rolling_oof"]], h[~h["rolling_oof"]]
+            h = h_all[h_all["player"] == player].dropna(subset=[y])
+            calc, live = h[h[oof]], h[~h[oof]]
             if not calc.empty and not live.empty:
                 live = pd.concat([calc.tail(1), live])  # connect both parts
             for part, dash in [(calc, "dash"), (live, "solid")]:
                 if part.empty:
                     continue
                 fig.add_trace(go.Scatter(
-                    x=part["seq"], y=part["rolling"], mode="lines", name=player,
+                    x=part["seq"], y=part[y], mode="lines", name=player,
                     line=dict(color=player_colors[player], width=2, dash=dash),
                     customdata=part[["season", "game"]],
                     hovertemplate=f"Spieler: {player}<br>Saison %{{customdata[0]}}, Spiel %{{customdata[1]}}<br>"
-                                  f"Ø letzte {FORM_HISTORY_WINDOW}: %{{y:+.1f}}<extra></extra>"))
-        fig.add_hline(y=0, line=dict(color="#8B4513", width=1))
+                                  f"{hover}<extra></extra>"))
+        if zero_line:
+            fig.add_hline(y=0, line=dict(color="#8B4513", width=1))
         # season boundaries as light lines with the year above
-        for season, g in hist.groupby("season"):
+        for s, g in h_all.groupby("season"):
             fig.add_vline(x=g["seq"].min() - 0.5, line=dict(color="#e0c9a6", width=1))
-            fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(season), showarrow=False,
+            fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(s), showarrow=False,
                                xanchor="left", yanchor="bottom", font=dict(size=10, color="#7a5a44"))
         fig.update_layout(
             showlegend=False, autosize=True, height=330,
             margin=dict(l=30, r=4, t=24, b=4),
             paper_bgcolor="#fdfaf6", plot_bgcolor="#fdfaf6",
             xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=False, zeroline=False, tickformat="+.0f", tickfont=dict(color="#7a5a44")))
+            yaxis=dict(showgrid=False, zeroline=False, tickformat=tickformat, tickfont=dict(color="#7a5a44")))
         return chart_frame(fig.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}))
 
-    form_charts = {v: form_chart(v) for v in FORM_VARIANTS}
-
-    # Same chart with Erwins Prophezeiung itself (rolling average of the predicted points)
-    PROPHECY_WINDOW = 10
+    # Basis of both charts: single games or a rolling average; dashed while a back-calculated value is in the window
+    HISTORY_BASES = {"Einzelspiel": 1, "5 Spiele": 5, "10 Spiele": 10}
     by = hist.groupby(["variant", "player"])
-    hist["pred_rolling"] = by["pred_score"].transform(
-        lambda s: s.rolling(PROPHECY_WINDOW, min_periods=PROPHECY_WINDOW).mean())
-    def prophecy_chart(variant):
-        fig = go.Figure()
-        for player in player_colors:
-            h = hist[(hist["variant"] == variant) & (hist["player"] == player)].dropna(subset=["pred_rolling"])
-            calc, live = h[h["rolling_oof"]], h[~h["rolling_oof"]]
-            if not calc.empty and not live.empty:
-                live = pd.concat([calc.tail(1), live])  # connect both parts
-            for part, dash in [(calc, "dash"), (live, "solid")]:
-                if part.empty:
-                    continue
-                fig.add_trace(go.Scatter(
-                    x=part["seq"], y=part["pred_rolling"], mode="lines", name=player,
-                    line=dict(color=player_colors[player], width=2, dash=dash),
-                    customdata=part[["season", "game"]],
-                    hovertemplate=f"Spieler: {player}<br>Saison %{{customdata[0]}}, Spiel %{{customdata[1]}}<br>"
-                                  f"Ø Prophezeiung letzte {PROPHECY_WINDOW}: %{{y:.1f}}<extra></extra>"))
-        for season, g in hist.groupby("season"):
-            fig.add_vline(x=g["seq"].min() - 0.5, line=dict(color="#e0c9a6", width=1))
-            fig.add_annotation(x=g["seq"].min(), y=1, yref="paper", text=str(season), showarrow=False,
-                               xanchor="left", yanchor="bottom", font=dict(size=10, color="#7a5a44"))
-        fig.update_layout(
-            showlegend=False, autosize=True, height=330,
-            margin=dict(l=30, r=4, t=24, b=4),
-            paper_bgcolor="#fdfaf6", plot_bgcolor="#fdfaf6",
-            xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=False, zeroline=False, tickformat=".1f", tickfont=dict(color="#7a5a44")))
-        return chart_frame(fig.to_html(include_plotlyjs='cdn', full_html=False, config={'responsive': True}))
+    for w in HISTORY_BASES.values():
+        for col in ["resid", "pred_score"]:
+            hist[f"{col}_{w}"] = by[col].transform(lambda s: s.rolling(w, min_periods=w).mean())
+        hist[f"oof_{w}"] = by["oof"].transform(lambda s: s.rolling(w, min_periods=1).max()).astype(bool)
 
-    prophecy_charts = {v: prophecy_chart(v) for v in FORM_VARIANTS}
+    def basis_label(w):
+        return "" if w == 1 else f"Ø letzte {w}: "
+
+    def form_chart(variant, season=None, w=FORM_HISTORY_WINDOW):
+        return history_chart(variant, season, f"resid_{w}", f"oof_{w}",
+                             f"{basis_label(w)}%{{y:+.1f}}", "+.0f", zero_line=True)
+
+    # Same chart with Erwins Prophezeiung itself (predicted points)
+    def prophecy_chart(variant, season=None, w=1):
+        return history_chart(variant, season, f"pred_score_{w}", f"oof_{w}",
+                             f"{basis_label(w)}Prophezeiung %{{y:.1f}} Punkte", "~.1f", zero_line=False)
+
+    form_seasons = sorted(hist["season"].unique(), reverse=True)
+
+    def basis_filter(key, default):
+        """Single games / rolling 5 / rolling 10; nothing selected = default."""
+        chosen = st.segmented_control("Basis", list(HISTORY_BASES), default=default,
+                                      label_visibility="collapsed", key=key)
+        return HISTORY_BASES[chosen or default]
+
+    def basis_caption(w):
+        return "Jedes Spiel einzeln." if w == 1 else f"Gleitender Schnitt über {w} Spiele."
+
+    def season_filter(key):
+        """Year buttons above a chart; nothing selected = whole history."""
+        chosen = st.segmented_control("Jahr", ["Alle"] + [str(s) for s in form_seasons], default="Alle",
+                                      label_visibility="collapsed", key=key)
+        return None if chosen in (None, "Alle") else int(chosen)
 
     def season_table(variant):
         mean, oof = form_by_season(form)[variant]
@@ -911,8 +916,10 @@ with tab5:
         chosen = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
                           index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
                           label_visibility="collapsed", key="form_variant")
-        embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
-        st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
+        basis_f = basis_filter("form_basis", "10 Spiele")
+        season_f = season_filter("form_season")
+        embed_html(form_chart(next(v for v, t in FORM_VARIANTS.items() if t == chosen), season_f, basis_f), height=400)
+        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Prophezeiung. {basis_caption(basis_f)} '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Die Prophezeiungen Seiner Eminenz Erwin</h3>', unsafe_allow_html=True)
@@ -920,8 +927,10 @@ with tab5:
                             index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
                             label_visibility="collapsed", key="prophecy_variant")
         variant_p = next(v for v, t in FORM_VARIANTS.items() if t == chosen_p)
-        embed_html(prophecy_charts[variant_p], height=400)
-        st.markdown(f'<div class="custom-caption">Die Prophezeiungen Seiner Eminenz Erwin in Punkten, gleitender Schnitt über {PROPHECY_WINDOW} Spiele. '
+        basis_p = basis_filter("prophecy_basis", "Einzelspiel")
+        season_p = season_filter("prophecy_season")
+        embed_html(prophecy_chart(variant_p, season_p, basis_p), height=400)
+        st.markdown(f'<div class="custom-caption">Die Prophezeiungen Seiner Eminenz Erwin in Punkten. {basis_caption(basis_p)} '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Segen nach Jahr</h3>', unsafe_allow_html=True)
