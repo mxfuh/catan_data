@@ -899,9 +899,9 @@ with tab4:
 with tab5:
     st.markdown('<h3 class="custom-title">Bumbas Segen</h3>', unsafe_allow_html=True)
     if form.empty:
-        st.markdown('<div class="custom-caption">Erwin hat noch nichts prophezeit.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="custom-caption">Seine Eminenz Erwin hat noch nichts prophezeit.</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="custom-caption">Ist-Punkte minus Erwins Prophezeiung (der Prognose), Schnitt der letzten {FORM_WINDOW} Spiele. '
+        st.markdown(f'<div class="custom-caption">Ist-Punkte minus die Prophezeiung Seiner Eminenz Erwin (der Prognose), Schnitt der letzten {FORM_WINDOW} Spiele. '
                     'Mit Spieler-Info: verglichen mit dem eigenen Normalniveau. Ohne: was man aus seiner Setzung macht. '
                     'Flamme: rot = von Bumba gesegnet (ab +2), orange = in Bumbas Gunst (ab +1), gelb = geduldet (ab 0), '
                     'grau = von Bumba verlassen.</div>', unsafe_allow_html=True)
@@ -915,13 +915,13 @@ with tab5:
         st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele, wie die Form oben. '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
-        st.markdown('<h3 class="custom-title">Erwins Prophezeiung</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="custom-title">Die Prophezeiungen Seiner Eminenz Erwin</h3>', unsafe_allow_html=True)
         chosen_p = st.radio("Variante", list(FORM_VARIANTS.values()), horizontal=True,
                             index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
                             label_visibility="collapsed", key="prophecy_variant")
         variant_p = next(v for v, t in FORM_VARIANTS.items() if t == chosen_p)
         embed_html(prophecy_charts[variant_p], height=400)
-        st.markdown(f'<div class="custom-caption">Erwins Prophezeiung in Punkten, gleitender Schnitt über {PROPHECY_WINDOW} Spiele. '
+        st.markdown(f'<div class="custom-caption">Die Prophezeiungen Seiner Eminenz Erwin in Punkten, gleitender Schnitt über {PROPHECY_WINDOW} Spiele. '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Segen nach Jahr</h3>', unsafe_allow_html=True)
