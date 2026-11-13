@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 
 import numpy as np
 
@@ -231,15 +232,45 @@ def notify(text, subject, cfg):
     import graph
 
     discord_notify.send(text)
+    msg = {
+        "subject": subject,
+        "internetMessageHeaders": [{"name": "X-Claude-Mailbot", "value": "1"}],
+        "body": {"contentType": "Text", "content": text.replace("**", "")},
+        "toRecipients": [{"emailAddress": {"address": a}} for a in cfg["mail_to"]],
+    }
+    since = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    err = None
+    for wait in MAIL_RETRY_WAITS + [None]:
+        try:
+            graph.request("POST", "/me/sendMail", body={"saveToSentItems": True, "message": msg})
+            return
+        except BaseException as e:  # graph.request beendet mit SystemExit; Discord-Nachricht ist dann schon raus
+            err = e
+        # Nur Gateway-Fehler/Timeouts wiederholen; bei 504 kann die Mail trotzdem raus sein
+        if wait is None or not _transient(err):
+            break
+        time.sleep(wait)
+        if _already_sent(graph, subject, since):
+            return
+    discord_notify.send(f"⚠️ Catan-Prognose: Mailversand fehlgeschlagen: {err}"[:1900])
+
+
+MAIL_RETRY_WAITS = [60, 300, 900]  # Sekunden vor den Wiederholungen (Timer startet den Dienst solange nicht neu)
+
+
+def _transient(e):
+    msg = str(e)
+    return any(f"-> {c}:" in msg for c in (500, 502, 503, 504)) or "timed out" in msg.lower() \
+        or isinstance(e, (TimeoutError, ConnectionError, OSError))
+
+
+def _already_sent(graph, subject, since):
     try:
-        graph.request("POST", "/me/sendMail", body={"saveToSentItems": True, "message": {
-            "subject": subject,
-            "internetMessageHeaders": [{"name": "X-Claude-Mailbot", "value": "1"}],
-            "body": {"contentType": "Text", "content": text.replace("**", "")},
-            "toRecipients": [{"emailAddress": {"address": a}} for a in cfg["mail_to"]],
-        }})
-    except BaseException as e:  # graph.request beendet mit SystemExit; Discord-Nachricht ist dann schon raus
-        discord_notify.send(f"⚠️ Catan-Prognose: Mailversand fehlgeschlagen: {e}"[:1900])
+        r = graph.request("GET", "/me/mailFolders/sentitems/messages?$select=subject&$top=10"
+                                 f"&$filter=sentDateTime%20ge%20{since}")
+        return any(m.get("subject") == subject for m in r.get("value", []))
+    except BaseException:
+        return False
 
 
 ##############################################
