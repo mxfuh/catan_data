@@ -912,7 +912,7 @@ with tab5:
                           index=list(FORM_VARIANTS).index("no_player"),  # default: nur Setzung
                           label_visibility="collapsed", key="form_variant")
         embed_html(form_charts[next(v for v, t in FORM_VARIANTS.items() if t == chosen)], height=400)
-        st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele, wie die Form oben. '
+        st.markdown(f'<div class="custom-caption">Gleitender Schnitt über {FORM_HISTORY_WINDOW} Spiele (ruhiger als die 5er-Form oben). '
                     'Gestrichelt: rückgerechnet.</div>', unsafe_allow_html=True)
 
         st.markdown('<h3 class="custom-title">Die Prophezeiungen Seiner Eminenz Erwin</h3>', unsafe_allow_html=True)
