@@ -320,7 +320,7 @@ def start_position_table(data):
 ##############################################
 
 FORM_WINDOW = 5           # "derzeit": letzte 5 Spiele
-FORM_HISTORY_WINDOW = 5  # Formkurve: gleiches Fenster wie die Form-Karten
+FORM_HISTORY_WINDOW = 10  # Formkurve: ruhiger über 10 Spiele
 FORM_VARIANTS = {"with_player": "Mit Spieler-Info", "no_player": "Ohne Spieler-Info"}
 
 
